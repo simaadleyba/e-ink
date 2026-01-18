@@ -189,7 +189,7 @@ class ManulScraper:
         header_img = soup.select_one("main.page-main img.content-header-img")
         img_url = None
         if header_img:
-            img_url = header_img.get("src") or self._select_srcset_best(header_img.get("srcset", ""))
+            img_url = header_img.get("src")
         if img_url and img_url.startswith("//"):
             img_url = "https:" + img_url
         elif img_url and img_url.startswith("/"):
