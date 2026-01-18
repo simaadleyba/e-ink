@@ -104,26 +104,36 @@ class ManulDisplay:
         # Create blank canvas
         canvas = Image.new('L', (width, height), color=255)  # White background
 
-        # Paste map on left (70%)
-        map_x = 0
-        map_y = 0
-        canvas.paste(map_image, (map_x, map_y))
-
-        # Draw divider line
-        draw = ImageDraw.Draw(canvas)
-        divider_x = map_image.width
-        draw.line([(divider_x, 0), (divider_x, height)], fill=0, width=2)
-
-        # Paste sidebar on right (30%)
-        sidebar_x = divider_x + 2
+        # Paste sidebar on left
+        sidebar_x = 0
         sidebar_y = (height - sidebar_image.height) // 2  # Center vertically
 
         # Ensure sidebar doesn't overflow
         if sidebar_image.height > height:
-            sidebar_image = sidebar_image.crop((0, 0, sidebar_image.width, height))
+            sidebar_top = (sidebar_image.height - height) // 2
+            sidebar_image = sidebar_image.crop(
+                (0, sidebar_top, sidebar_image.width, sidebar_top + height)
+            )
             sidebar_y = 0
 
         canvas.paste(sidebar_image, (sidebar_x, sidebar_y))
+
+        # Draw divider line
+        draw = ImageDraw.Draw(canvas)
+        divider_x = sidebar_image.width
+        draw.line([(divider_x, 0), (divider_x, height)], fill=0, width=2)
+
+        # Paste map on right
+        map_x = divider_x + 2
+        map_y = (height - map_image.height) // 2
+
+        # Ensure map doesn't overflow
+        if map_image.height > height:
+            map_top = (map_image.height - height) // 2
+            map_image = map_image.crop((0, map_top, map_image.width, map_top + height))
+            map_y = 0
+
+        canvas.paste(map_image, (map_x, map_y))
 
         logger.info(f"Composed layout: {canvas.size}")
         return canvas
