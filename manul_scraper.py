@@ -1,10 +1,21 @@
 #!/usr/bin/env python3
 """
-Manul Scraper Module
-- Uses fixed allow-list from manul_urls.py (no crawling / guessing)
-- Reads YAML config (because manul_display passes config_path)
-- Returns a ManulData object with .image/.name/.location/.description
- - System dependency for WebP decoding: sudo apt-get install -y webp (dwebp)
+manul_scraper.py (STRICT + PI-SAFE)
+
+Extract ONLY:
+1) Header photo: main.page-main figure.content-header-figure img.content-header-img[src]
+   - fallback ONLY if img.src missing: picture source[type="image/webp"][srcset] (pick largest)
+   - skip placeholder SVG default-cover-img.svg
+2) Name: h1.content-header-h1 span.animal-name-text
+3) Short description: p.content-header-subheader (full text)
+
+Important Raspberry Pi stability:
+- DO NOT decode WebP with Pillow (can SIGILL on some Pi builds).
+- Convert WebP -> PNG using ffmpeg (preferred) or dwebp (fallback),
+  then open PNG with Pillow.
+
+Deps:
+  sudo apt-get install -y ffmpeg webp
 """
 
 import logging
@@ -39,7 +50,6 @@ class ManulData:
 
 class ManulScraper:
     def __init__(self, config_path_or_dict: Union[str, Path, dict]):
-        # manul_display passes a YAML path, so support that
         if isinstance(config_path_or_dict, (str, Path)):
             cfg_path = Path(config_path_or_dict)
             cfg = yaml.safe_load(cfg_path.read_text(encoding="utf-8")) or {}
@@ -48,50 +58,44 @@ class ManulScraper:
         else:
             raise TypeError(f"Expected config path or dict, got {type(config_path_or_dict)}")
 
-        # Optional scraping settings (safe defaults if not in YAML)
         scraping = cfg.get("scraping", {}) if isinstance(cfg, dict) else {}
         manuls_scraping = scraping.get("manuls", {}) if isinstance(scraping, dict) else {}
 
         self.user_agent = manuls_scraping.get("user_agent", "manul/1.0 (+https://manulization.com)")
-        self.timeout = manuls_scraping.get("timeout", 20)
-        self.retry_attempts = manuls_scraping.get("retry_attempts", 3)
-        self.retry_delay = manuls_scraping.get("retry_delay", 2)
+        self.timeout = int(manuls_scraping.get("timeout", 20))
+        self.retry_attempts = int(manuls_scraping.get("retry_attempts", 3))
+        self.retry_delay = float(manuls_scraping.get("retry_delay", 2))
 
         self.manul_urls = list(dict.fromkeys(MANUL_URLS))
         if not self.manul_urls:
             raise RuntimeError("MANUL_URLS is empty – nothing to scrape")
 
         self.session = requests.Session()
-        self.session.headers.update({"User-Agent": self.user_agent})
+        self.session.headers.update(
+            {
+                "User-Agent": self.user_agent,
+                "Accept": "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
+                "Accept-Language": "en-US,en;q=0.9",
+                "Connection": "keep-alive",
+            }
+        )
 
-    def _get(self, url: str) -> Optional[requests.Response]:
+    def _get(self, url: str, extra_headers: Optional[dict] = None) -> Optional[requests.Response]:
+        import time
+
+        headers = dict(self.session.headers)
+        if extra_headers:
+            headers.update(extra_headers)
+
         for attempt in range(1, self.retry_attempts + 1):
             try:
-                r = self.session.get(url, timeout=self.timeout)
+                r = self.session.get(url, timeout=self.timeout, headers=headers)
                 r.raise_for_status()
                 return r
             except Exception as e:
                 logger.warning(f"GET failed ({attempt}/{self.retry_attempts}) for {url}: {e}")
                 if attempt < self.retry_attempts:
-                    import time
                     time.sleep(self.retry_delay)
-        return None
-
-    @staticmethod
-    def _extract_meta(soup: BeautifulSoup, property_name: str) -> Optional[str]:
-        tag = soup.select_one(f'meta[property="{property_name}"]')
-        if tag and tag.get("content"):
-            return tag["content"].strip()
-        return None
-
-    @staticmethod
-    def _extract_title(soup: BeautifulSoup) -> Optional[str]:
-        ogt = ManulScraper._extract_meta(soup, "og:title")
-        if ogt:
-            return ogt
-        title_tag = soup.find("title")
-        if title_tag and title_tag.text:
-            return re.sub(r"\s+", " ", title_tag.text).strip()
         return None
 
     @staticmethod
@@ -103,137 +107,241 @@ class ManulScraper:
         if not srcset:
             return None
         best_url = None
-        best_score = -1.0
+        best_w = -1.0
         for candidate in srcset.split(","):
             candidate = candidate.strip()
             if not candidate:
                 continue
             parts = candidate.split()
             url = parts[0].strip()
-            score = 0.0
+            w = 0.0
             if len(parts) > 1:
-                descriptor = parts[1].strip()
-                if descriptor.endswith("w"):
+                d = parts[1].strip()
+                if d.endswith("w"):
                     try:
-                        score = float(descriptor[:-1])
+                        w = float(d[:-1])
                     except ValueError:
-                        score = 0.0
-                elif descriptor.endswith("x"):
+                        w = 0.0
+                elif d.endswith("x"):
                     try:
-                        score = float(descriptor[:-1])
+                        w = float(d[:-1])
                     except ValueError:
-                        score = 0.0
-            if score > best_score:
-                best_score = score
+                        w = 0.0
+            if w > best_w:
+                best_w = w
                 best_url = url
-            if best_url is None:
-                best_url = url
+        if best_url is None:
+            first = srcset.split(",")[0].strip().split()
+            return first[0].strip() if first else None
         return best_url
 
     @staticmethod
-    def _decode_image(img_url: str, content: bytes, content_type: str) -> Optional[Image.Image]:
-        is_webp = img_url.lower().endswith(".webp") or content_type.lower().startswith("image/webp")
+    def _looks_like_html(content: bytes, content_type: str) -> bool:
+        ct = (content_type or "").lower()
+        if ct.startswith("text/"):
+            return True
+        head = content[:2048].lower()
+        return b"<!doctype html" in head or b"<html" in head
+
+    @staticmethod
+    def _is_webp_bytes(content: bytes, content_type: str, url: str) -> bool:
+        ct_l = (content_type or "").lower()
+        url_l = (url or "").lower()
+        sig = len(content) >= 12 and content[:4] == b"RIFF" and content[8:12] == b"WEBP"
+        return sig or ct_l.startswith("image/webp") or url_l.endswith(".webp")
+
+    @staticmethod
+    def _open_png_bytes(png_bytes: bytes) -> Optional[Image.Image]:
+        try:
+            im = Image.open(BytesIO(png_bytes))
+            im.load()
+            return im.convert("RGB")
+        except Exception as e:
+            logger.warning(f"Failed to open PNG bytes with Pillow: {e}")
+            return None
+
+    @staticmethod
+    def _convert_webp_to_png_bytes_ffmpeg(webp_path: Path, png_path: Path) -> tuple[bool, str]:
+        # -y overwrite, -loglevel error keeps output clean
+        proc = subprocess.run(
+            ["ffmpeg", "-hide_banner", "-loglevel", "error", "-y", "-i", str(webp_path), str(png_path)],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if proc.returncode != 0:
+            msg = ((proc.stderr or "") + " " + (proc.stdout or "")).strip()
+            return False, msg
+        return True, ""
+
+    @staticmethod
+    def _convert_webp_to_png_bytes_dwebp(webp_path: Path, png_path: Path) -> tuple[bool, str]:
+        proc = subprocess.run(
+            ["dwebp", str(webp_path), "-o", str(png_path)],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if proc.returncode != 0:
+            msg = ((proc.stderr or "") + " " + (proc.stdout or "")).strip()
+            return False, msg
+        return True, ""
+
+    def _decode_image_bytes(self, img_url: str, content: bytes, content_type: str) -> Optional[Image.Image]:
+        url_l = (img_url or "").lower()
+        ct_l = (content_type or "").lower()
+
+        # Block SVG placeholders
+        if url_l.endswith(".svg") or ct_l.startswith("image/svg"):
+            logger.warning(f"Blocked SVG image: {img_url}")
+            return None
+
+        # If HTML, skip
+        if self._looks_like_html(content, content_type):
+            logger.warning(
+                f"Non-image response for {img_url} (Content-Type={content_type}). First bytes={content[:40]!r}"
+            )
+            return None
+
+        is_webp = self._is_webp_bytes(content, content_type, img_url)
+
+        # Non-WebP: Pillow is fine
         if not is_webp:
             try:
                 im = Image.open(BytesIO(content))
                 im.load()
-                return im
+                return im.convert("RGB")
             except Exception as e:
-                logger.warning(f"Failed to decode image {img_url}: {e}")
+                logger.warning(f"Failed to decode non-WebP image {img_url}: {e}")
                 return None
 
+        # WebP: NEVER let Pillow touch it. Convert externally to PNG then open PNG.
         try:
-            with tempfile.TemporaryDirectory() as temp_dir:
-                webp_path = Path(temp_dir) / "img.webp"
-                png_path = Path(temp_dir) / "img.png"
+            with tempfile.TemporaryDirectory() as td:
+                td = Path(td)
+                webp_path = td / "img.webp"
+                png_path = td / "img.png"
                 webp_path.write_bytes(content)
-                subprocess.run(
-                    ["dwebp", str(webp_path), "-o", str(png_path)],
-                    check=True,
-                    capture_output=True,
-                    text=True,
-                )
-                im = Image.open(png_path)
-                im.load()
-                return im.convert("RGB")
-        except FileNotFoundError:
-            logger.warning("dwebp not found. Install with: sudo apt-get install -y webp")
-            return None
-        except subprocess.CalledProcessError as e:
-            logger.warning(f"dwebp failed for {img_url}: {e.stderr.strip()}")
+
+                ok, msg = self._convert_webp_to_png_bytes_ffmpeg(webp_path, png_path)
+                if not ok:
+                    # fallback to dwebp
+                    ok2, msg2 = self._convert_webp_to_png_bytes_dwebp(webp_path, png_path)
+                    if not ok2:
+                        logger.warning(
+                            f"WebP->PNG failed for {img_url}: ffmpeg_err={msg!r} dwebp_err={msg2!r}"
+                        )
+                        return None
+
+                png_bytes = png_path.read_bytes()
+                return self._open_png_bytes(png_bytes)
+        except FileNotFoundError as e:
+            logger.warning(f"Missing converter binary ({e}). Install: sudo apt-get install -y ffmpeg webp")
             return None
         except Exception as e:
-            logger.warning(f"Failed to decode WebP image {img_url}: {e}")
+            logger.warning(f"WebP decode exception for {img_url}: {e}")
             return None
 
-    def _download_image(self, img_url: str) -> Optional[Image.Image]:
-        r = self._get(img_url)
+    def _download_image(self, img_url: str, referer: Optional[str] = None) -> Optional[Image.Image]:
+        extra_headers = {"Referer": referer} if referer else {}
+        r = self._get(img_url, extra_headers=extra_headers)
         if r is None:
             return None
-        content_type = r.headers.get("Content-Type", "")
-        return self._decode_image(img_url, r.content, content_type)
+        content_type = r.headers.get("Content-Type", "") or ""
+        return self._decode_image_bytes(img_url, r.content or b"", content_type)
+
+    @staticmethod
+    def _derive_short_name(full_name: str) -> str:
+        s = (full_name or "").strip()
+        if not s:
+            return ""
+        s = s.split(" the ", 1)[0].strip()
+        s = s.split("(", 1)[0].strip()
+        toks = s.split()
+        return toks[0] if toks else s
 
     def get_random_manul(self) -> Optional[ManulData]:
-        url = random.choice(self.manul_urls)
-        logger.info(f"Selected manul URL: {url}")
+        max_tries = min(25, len(self.manul_urls))
+        tried = set()
 
-        page = self._get(url)
-        if page is None:
-            logger.error(f"Failed to fetch manul page: {url}")
-            return None
+        for _ in range(max_tries):
+            url = random.choice(self.manul_urls)
+            if url in tried:
+                continue
+            tried.add(url)
 
-        html = page.text
-        soup = BeautifulSoup(html, "html.parser")
+            logger.info(f"Selected manul URL: {url}")
 
-        # 1) image URL (first content-header image under main)
-        header_img = soup.select_one("main.page-main img.content-header-img")
-        img_url = None
-        if header_img:
-            img_url = header_img.get("src")
-        if img_url and img_url.startswith("//"):
-            img_url = "https:" + img_url
-        elif img_url and img_url.startswith("/"):
-            img_url = "https://manulization.com" + img_url
+            page = self._get(url)
+            if page is None:
+                logger.warning(f"Failed to fetch manul page, skipping: {url}")
+                continue
 
-        # 2) title/name
-        name_tag = soup.select_one("h1.content-header-h1 span.animal-name-text")
-        name = self._collapse_whitespace(name_tag.get_text()) if name_tag else ""
-        if not name:
-            title = self._extract_title(soup)
-            name = re.split(r"\s[-–|]\s", title)[0].strip() if title else ""
+            soup = BeautifulSoup(page.text, "html.parser")
 
-        short_name_tag = soup.select_one(
-            "figcaption span.uploaded-image-caption-animal-institution span.animal-name-text"
-        )
-        if short_name_tag and short_name_tag.get_text(strip=True):
-            short_name = self._collapse_whitespace(short_name_tag.get_text())
-        else:
-            short_name = name.split()[0] if name else ""
+            # 1) Header photo URL (STRICT)
+            img_url = None
+            img_tag = soup.select_one("main.page-main figure.content-header-figure img.content-header-img")
+            if img_tag and img_tag.get("src"):
+                img_url = img_tag["src"].strip()
 
-        # 3) description (optional)
-        desc_tag = soup.select_one("p.article-paragraph.body-large")
-        desc = self._collapse_whitespace(desc_tag.get_text()) if desc_tag else ""
-        if not desc:
-            desc = self._extract_meta(soup, "og:description") or ""
-        if not desc:
-            meta_desc = soup.select_one('meta[name="description"]')
-            if meta_desc and meta_desc.get("content"):
-                desc = meta_desc["content"].strip()
+            # Fallback ONLY if img src missing
+            if not img_url:
+                src_tag = soup.select_one(
+                    "main.page-main figure.content-header-figure picture source[type='image/webp']"
+                )
+                if src_tag and src_tag.get("srcset"):
+                    img_url = self._select_srcset_best(src_tag["srcset"])
 
-        # 4) location
-        location_tag = soup.select_one("p.content-header-subheader")
-        location = self._collapse_whitespace(location_tag.get_text()) if location_tag else ""
+            if not img_url:
+                logger.warning(f"No header image found, skipping: {url}")
+                continue
 
-        image = self._download_image(img_url) if img_url else None
+            # Normalize URL
+            if img_url.startswith("//"):
+                img_url = "https:" + img_url
+            elif img_url.startswith("/"):
+                img_url = "https://manulization.com" + img_url
 
-        return ManulData(
-            name=name,
-            short_name=short_name,
-            location=location,
-            description=desc or "",
-            image=image,
-            source_url=url,
-        )
+            # Skip placeholder SVG pages
+            img_url_l = img_url.lower()
+            if img_url_l.endswith(".svg") or "default-cover-img.svg" in img_url_l:
+                logger.warning(f"Placeholder header image (SVG), skipping: {img_url} from {url}")
+                continue
+
+            # 2) Name (STRICT)
+            name_tag = soup.select_one("h1.content-header-h1 span.animal-name-text")
+            if not name_tag:
+                logger.warning(f"No name found, skipping: {url}")
+                continue
+            name = self._collapse_whitespace(name_tag.get_text())
+
+            # 3) Subheader (STRICT)
+            sub_tag = soup.select_one("p.content-header-subheader")
+            if not sub_tag:
+                logger.warning(f"No subheader found, skipping: {url}")
+                continue
+            subheader = self._collapse_whitespace(sub_tag.get_text(" ", strip=True))
+
+            # Download + decode image (ONLY other fetch besides the page)
+            image = self._download_image(img_url, referer=url)
+            if image is None:
+                logger.warning(f"Failed to decode image, skipping: {img_url} from {url}")
+                continue
+
+            short_name = self._derive_short_name(name)
+
+            return ManulData(
+                name=name,
+                short_name=short_name,
+                location="",
+                description=subheader,
+                image=image,
+                source_url=url,
+            )
+
+        logger.error(f"Failed to find a valid manul with a photo after {max_tries} tries.")
+        return None
 
 
 if __name__ == "__main__":
