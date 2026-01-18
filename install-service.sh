@@ -1,107 +1,98 @@
 #!/bin/bash
-# Installation script for Manul E-Ink Display service
-# This script sets up safe power-cycling and hourly updates
+# Installation script for the E-Ink Dashboard service
 
-echo "=== Manul E-Ink Display Service Installer ==="
+set -e
+
+echo "=== E-Ink Dashboard Service Installer ==="
 echo ""
 
-# Get the absolute path to the project directory
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 echo "Project directory: $PROJECT_DIR"
 echo ""
 
 # Create systemd service file
-echo "Creating systemd service..."
-sudo tee /etc/systemd/system/manul-display.service > /dev/null <<EOF
+printf "%s\n" "Creating systemd service..."
+sudo tee /etc/systemd/system/dashboard.service > /dev/null <<EOF_SERVICE
 [Unit]
-Description=Manul E-Ink Display
+Description=E-Ink Dashboard
 After=network-online.target
 Wants=network-online.target
 StartLimitIntervalSec=0
 
 [Service]
 Type=oneshot
-ExecStart=/usr/bin/python3 ${PROJECT_DIR}/manul_display.py
+ExecStart=/usr/bin/python3 ${PROJECT_DIR}/dashboard.py
 WorkingDirectory=${PROJECT_DIR}
 User=${USER}
 StandardOutput=journal
 StandardError=journal
-# Safe shutdown handling
 TimeoutStopSec=10
 KillMode=mixed
-# Restart on failure
 Restart=on-failure
 RestartSec=30
 
 [Install]
 WantedBy=multi-user.target
-EOF
+EOF_SERVICE
 
-# Create hourly timer for map refreshes
-echo "Creating hourly timer..."
-sudo tee /etc/systemd/system/manul-hourly.service > /dev/null <<EOF
+# Create hourly refresh timer
+printf "%s\n" "Creating hourly timer..."
+sudo tee /etc/systemd/system/dashboard-hourly.service > /dev/null <<EOF_HOURLY
 [Unit]
-Description=Manul E-Ink Display Hourly Update
+Description=E-Ink Dashboard Hourly Update
 After=network-online.target
 
 [Service]
 Type=oneshot
-ExecStart=/usr/bin/python3 ${PROJECT_DIR}/manul_display.py --refresh-map
+ExecStart=/usr/bin/python3 ${PROJECT_DIR}/dashboard.py
 WorkingDirectory=${PROJECT_DIR}
 User=${USER}
 StandardOutput=journal
 StandardError=journal
-EOF
+EOF_HOURLY
 
-sudo tee /etc/systemd/system/manul-hourly.timer > /dev/null <<EOF
+sudo tee /etc/systemd/system/dashboard-hourly.timer > /dev/null <<EOF_TIMER
 [Unit]
-Description=Manul E-Ink Display Hourly Timer
-Requires=manul-hourly.service
+Description=E-Ink Dashboard Hourly Timer
+Requires=dashboard-hourly.service
 
 [Timer]
-# Run every hour
 OnCalendar=hourly
-# Run on boot if missed
 Persistent=true
-# Random delay to avoid API rate limiting
 RandomizedDelaySec=300
 
 [Install]
 WantedBy=timers.target
-EOF
+EOF_TIMER
 
-# Reload systemd
-echo "Reloading systemd..."
+printf "%s\n" "Reloading systemd..."
 sudo systemctl daemon-reload
 
-# Enable services
-echo "Enabling services..."
-sudo systemctl enable manul-display.service
-sudo systemctl enable manul-hourly.timer
+printf "%s\n" "Enabling services..."
+sudo systemctl enable dashboard.service
+sudo systemctl enable dashboard-hourly.timer
 
-# Start timer
-echo "Starting hourly timer..."
-sudo systemctl start manul-hourly.timer
+printf "%s\n" "Starting hourly timer..."
+sudo systemctl start dashboard-hourly.timer
 
-# Run once now
-echo ""
-echo "Running initial display update..."
-sudo systemctl start manul-display.service
+printf "%s\n" ""
+printf "%s\n" "Running initial dashboard update..."
+sudo systemctl start dashboard.service
 
-echo ""
-echo "=== Installation Complete! ==="
-echo ""
-echo "The display will now:"
-echo "  - Update on boot"
-echo "  - Update every hour (new random city)"
-echo "  - Handle power cycles safely"
-echo ""
-echo "Useful commands:"
-echo "  Check status:     sudo systemctl status manul-display.service"
-echo "  View logs:        journalctl -u manul-display.service -f"
-echo "  Check timer:      sudo systemctl status manul-hourly.timer"
-echo "  List next runs:   systemctl list-timers manul-hourly.timer"
-echo "  Manual update:    sudo systemctl start manul-display.service"
-echo "  Stop hourly:      sudo systemctl stop manul-hourly.timer"
-echo "  Disable auto-run: sudo systemctl disable manul-display.service"
-echo ""
+printf "%s\n" ""
+printf "%s\n" "=== Installation Complete! ==="
+printf "%s\n" ""
+printf "%s\n" "The display will now:"
+printf "%s\n" "  - Update on boot"
+printf "%s\n" "  - Update every hour"
+printf "%s\n" "  - Handle power cycles safely"
+printf "%s\n" ""
+printf "%s\n" "Useful commands:"
+printf "%s\n" "  Check status:     sudo systemctl status dashboard.service"
+printf "%s\n" "  View logs:        journalctl -u dashboard.service -f"
+printf "%s\n" "  Check timer:      sudo systemctl status dashboard-hourly.timer"
+printf "%s\n" "  List next runs:   systemctl list-timers dashboard-hourly.timer"
+printf "%s\n" "  Manual update:    sudo systemctl start dashboard.service"
+printf "%s\n" "  Stop hourly:      sudo systemctl stop dashboard-hourly.timer"
+printf "%s\n" "  Disable auto-run: sudo systemctl disable dashboard.service"
+printf "%s\n" ""
