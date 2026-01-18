@@ -16,6 +16,7 @@ from typing import Optional, Union
 
 import requests
 import yaml
+from bs4 import BeautifulSoup
 from PIL import Image
 
 from manul_urls import MANUL_URLS
@@ -26,6 +27,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class ManulData:
     name: str
+    short_name: str
     location: str
     description: str
     image: Optional[Image.Image]
@@ -73,38 +75,57 @@ class ManulScraper:
         return None
 
     @staticmethod
-    def _extract_meta(html: str, property_name: str) -> Optional[str]:
-        """
-        Extract <meta property="og:..." content="..."> style values.
-        Works even without BeautifulSoup.
-        """
-        # property="og:image" content="..."
-        pattern = rf'<meta[^>]+property=["\']{re.escape(property_name)}["\'][^>]*content=["\']([^"\']+)["\']'
-        m = re.search(pattern, html, flags=re.IGNORECASE)
-        if m:
-            return m.group(1).strip()
+    def _extract_meta(soup: BeautifulSoup, property_name: str) -> Optional[str]:
+        tag = soup.select_one(f'meta[property="{property_name}"]')
+        if tag and tag.get("content"):
+            return tag["content"].strip()
         return None
 
     @staticmethod
-    def _extract_title(html: str) -> Optional[str]:
-        # Prefer og:title
-        ogt = ManulScraper._extract_meta(html, "og:title")
+    def _extract_title(soup: BeautifulSoup) -> Optional[str]:
+        ogt = ManulScraper._extract_meta(soup, "og:title")
         if ogt:
             return ogt
-
-        # Fallback <title>...</title>
-        m = re.search(r"<title>\s*(.*?)\s*</title>", html, flags=re.IGNORECASE | re.DOTALL)
-        if m:
-            return re.sub(r"\s+", " ", m.group(1)).strip()
+        title_tag = soup.find("title")
+        if title_tag and title_tag.text:
+            return re.sub(r"\s+", " ", title_tag.text).strip()
         return None
 
     @staticmethod
-    def _extract_first_img_src(html: str) -> Optional[str]:
-        # crude fallback: first <img ... src="...">
-        m = re.search(r'<img[^>]+src=["\']([^"\']+)["\']', html, flags=re.IGNORECASE)
-        if m:
-            return m.group(1).strip()
-        return None
+    def _collapse_whitespace(text: str) -> str:
+        return re.sub(r"\s+", " ", text or "").strip()
+
+    @staticmethod
+    def _select_srcset_best(srcset: str) -> Optional[str]:
+        if not srcset:
+            return None
+        best_url = None
+        best_score = -1.0
+        for candidate in srcset.split(","):
+            candidate = candidate.strip()
+            if not candidate:
+                continue
+            parts = candidate.split()
+            url = parts[0].strip()
+            score = 0.0
+            if len(parts) > 1:
+                descriptor = parts[1].strip()
+                if descriptor.endswith("w"):
+                    try:
+                        score = float(descriptor[:-1])
+                    except ValueError:
+                        score = 0.0
+                elif descriptor.endswith("x"):
+                    try:
+                        score = float(descriptor[:-1])
+                    except ValueError:
+                        score = 0.0
+            if score > best_score:
+                best_score = score
+                best_url = url
+            if best_url is None:
+                best_url = url
+        return best_url
 
     def _download_image(self, img_url: str) -> Optional[Image.Image]:
         r = self._get(img_url)
@@ -128,34 +149,54 @@ class ManulScraper:
             return None
 
         html = page.text
+        soup = BeautifulSoup(html, "html.parser")
 
         # 1) image URL
-        img_url = self._extract_meta(html, "og:image") or self._extract_first_img_src(html)
+        header_img = soup.select_one("img.content-header-img")
+        img_url = None
+        if header_img:
+            img_url = self._select_srcset_best(header_img.get("srcset", "")) or header_img.get("src")
+        if not img_url:
+            img_url = self._extract_meta(soup, "og:image")
         if img_url and img_url.startswith("//"):
             img_url = "https:" + img_url
         elif img_url and img_url.startswith("/"):
             img_url = "https://manulization.com" + img_url
 
         # 2) title/name
-        title = self._extract_title(html) or "Unknown Manul"
-        # try to sanitize "X – Manulization" style titles
-        name = re.split(r"\s[-–|]\s", title)[0].strip() if title else "Unknown Manul"
+        name_tag = soup.select_one("h1.content-header-h1 span.animal-name-text")
+        name = self._collapse_whitespace(name_tag.get_text()) if name_tag else ""
+        if not name:
+            title = self._extract_title(soup)
+            name = re.split(r"\s[-–|]\s", title)[0].strip() if title else ""
+
+        short_name_tag = soup.select_one(
+            "figcaption span.uploaded-image-caption-animal-institution span.animal-name-text"
+        )
+        if short_name_tag and short_name_tag.get_text(strip=True):
+            short_name = self._collapse_whitespace(short_name_tag.get_text())
+        else:
+            short_name = name.split()[0] if name else ""
 
         # 3) description (optional)
-        desc = self._extract_meta(html, "og:description")
+        desc_tag = soup.select_one("p.article-paragraph.body-large")
+        desc = self._collapse_whitespace(desc_tag.get_text()) if desc_tag else ""
         if not desc:
-            # fallback meta name="description"
-            m = re.search(r'<meta[^>]+name=["\']description["\'][^>]*content=["\']([^"\']+)["\']',
-                          html, flags=re.IGNORECASE)
-            desc = m.group(1).strip() if m else ""
+            desc = self._extract_meta(soup, "og:description") or ""
+        if not desc:
+            meta_desc = soup.select_one('meta[name="description"]')
+            if meta_desc and meta_desc.get("content"):
+                desc = meta_desc["content"].strip()
 
-        # 4) location (we can’t reliably parse without knowing page structure; keep blank for now)
-        location = ""
+        # 4) location
+        location_tag = soup.select_one("p.content-header-subheader")
+        location = self._collapse_whitespace(location_tag.get_text()) if location_tag else ""
 
         image = self._download_image(img_url) if img_url else None
 
         return ManulData(
             name=name,
+            short_name=short_name,
             location=location,
             description=desc or "",
             image=image,
