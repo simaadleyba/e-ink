@@ -1,68 +1,40 @@
-# E-Ink Manul Display Configuration
+# E-Ink Dashboard Configuration
 
-# Stadia Maps API Configuration
-stadia_maps:
-  api_key: "15c6326b-0072-4816-9bd5-f4561fef924f"  # Get from https://stadiamaps.com/
-  style: "stamen_toner"  # High contrast style perfect for e-ink
+dashboard:
+  timezone: Europe/Istanbul
 
-# Map Settings
-map:
-  # City rotation: Set to one of the cities below, or use random_city: true
-  random_city: true  # Pick random city from cities.yaml each refresh
-  center_lat: 40.7128  # Default: New York City
-  center_lon: -74.0060
-  zoom: 12  # City zoom level (12-14 shows good detail)
-  width: 560  # 70% of display width
-  height: 480
-  refresh_interval_hours: 1  # Refresh every hour for rotating cities
-  cities_file: "cities.yaml"  # List of cities to rotate through
+reminders:
+  method: caldav
+  username: "<apple_id_email>"
+  app_password: "<app_specific_password>"
+  caldav_url: "<full CalDAV base or principal URL>"
+  list_name: "Reminders"
+  max_items: 8
+  show_completed: false
+
+weather:
+  latitude: 41.0082
+  longitude: 28.9784
+  timezone: Europe/Istanbul
+  timeout: 10
 
 # Display Settings
+# Waveshare 7.5" e-ink
+# Resolution: 800x480
+# Font: IBM Plex Mono
+
 display:
-  width: 800  # Waveshare 7.5" display
+  width: 800
   height: 480
-  model: "epd7in5_V2"  # Waveshare 7.5" V2 model
+  model: "epd7in5_V2"
 
-# Sidebar Settings
-sidebar:
-  width: 240  # 30% of display width
-  manul_rotation_hours: 6  # Rotate manul every 6 hours
-
-# Image Processing Settings
-image_processing:
-  contrast_boost: 2.2  # 1.0-3.0, higher = more contrast
-  use_clahe: false  # Use CLAHE instead of simple contrast boost
-  clahe_clip_limit: 2.0
-  clahe_tile_grid_size: 8
-  dithering: true  # Floyd-Steinberg dithering
-  palette_colors: 4  # 4-color palette for e-ink
-
-# Text Rendering
 text:
-  font_size: 12
-  line_spacing: 4
-  max_description_length: 200  # Characters
+  font_path: "/usr/share/fonts/truetype/ibm-plex/IBMPlexMono-Regular.ttf"
+  font_size: 18
+  header_font_size: 28
+  line_spacing: 6
+  section_spacing: 16
 
-# Cache Settings
-cache:
-  maps_dir: "cache/maps"
-  manuls_dir: "cache/manuls"
-  max_age_hours: 168  # 1 week
-
-# Local Manul Storage (fallback)
-local_manuls:
-  directory: "local_manuls"
-  metadata_file: "local_manuls/metadata.json"
-
-# Web Scraping Settings
-scraping:
-  manulization_url: "https://manulization.com/manuls/"
-  user_agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
-  timeout: 10
-  retry_attempts: 3
-  retry_delay: 2
-
-# Logging
 logging:
-  level: "INFO"  # DEBUG, INFO, WARNING, ERROR
-  file: "manul_display.log"
+  level: "INFO"
+  file: "dashboard.log"
