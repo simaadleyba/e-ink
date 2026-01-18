@@ -14,7 +14,7 @@ from typing import Optional, Dict
 
 import requests
 import yaml
-from PIL import Image, ImageOps
+from PIL import Image
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -115,7 +115,7 @@ class MapFetcher:
             params = {
                 'center': f"{lat},{lon}",
                 'zoom': zoom,
-                'size': f"{width}x{height}",
+                'size': f"{width}x{height}@2x",
                 'api_key': self.api_key
             }
 
@@ -138,6 +138,18 @@ class MapFetcher:
         except Exception as e:
             logger.error(f"Error processing map response: {e}")
             return None
+
+    def _crop_attribution_strip(self, image: Image.Image) -> Image.Image:
+        """Crop a small strip to remove attribution text."""
+        strip_height = max(10, int(image.height * 0.03))
+        if image.height <= strip_height:
+            logger.warning("Image too small to crop attribution strip")
+            return image
+
+        crop_box = (0, 0, image.width, image.height - strip_height)
+        cropped = image.crop(crop_box)
+        logger.info(f"Cropped attribution strip ({strip_height}px) from bottom")
+        return cropped
 
     def _process_map_for_eink(self, image: Image.Image) -> Image.Image:
         """Convert map to monochrome for e-ink display"""
@@ -188,13 +200,16 @@ class MapFetcher:
                     logger.error(f"Failed to load fallback cached map: {e}")
             return None
 
-        # Process for e-ink
-        image = self._process_map_for_eink(image)
+        # Remove attribution strip from high-res image
+        image = self._crop_attribution_strip(image)
 
-        # Ensure correct size
+        # Downscale before processing for e-ink
         target_size = (self.map_config['width'], self.map_config['height'])
         if image.size != target_size:
             image = image.resize(target_size, Image.Resampling.LANCZOS)
+
+        # Process for e-ink
+        image = self._process_map_for_eink(image)
 
         # Save to cache
         try:
