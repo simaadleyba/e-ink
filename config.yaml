@@ -1,0 +1,68 @@
+# E-Ink Manul Display Configuration
+
+# Stadia Maps API Configuration
+stadia_maps:
+  api_key: "15c6326b-0072-4816-9bd5-f4561fef924f"  # Get from https://stadiamaps.com/
+  style: "stamen_toner"  # High contrast style perfect for e-ink
+
+# Map Settings
+map:
+  # City rotation: Set to one of the cities below, or use random_city: true
+  random_city: true  # Pick random city from cities.yaml each refresh
+  center_lat: 40.7128  # Default: New York City
+  center_lon: -74.0060
+  zoom: 12  # City zoom level (12-14 shows good detail)
+  width: 560  # 70% of display width
+  height: 480
+  refresh_interval_hours: 1  # Refresh every hour for rotating cities
+  cities_file: "cities.yaml"  # List of cities to rotate through
+
+# Display Settings
+display:
+  width: 800  # Waveshare 7.5" display
+  height: 480
+  model: "epd7in5_V2"  # Waveshare 7.5" V2 model
+
+# Sidebar Settings
+sidebar:
+  width: 240  # 30% of display width
+  manul_rotation_hours: 6  # Rotate manul every 6 hours
+
+# Image Processing Settings
+image_processing:
+  contrast_boost: 2.2  # 1.0-3.0, higher = more contrast
+  use_clahe: false  # Use CLAHE instead of simple contrast boost
+  clahe_clip_limit: 2.0
+  clahe_tile_grid_size: 8
+  dithering: true  # Floyd-Steinberg dithering
+  palette_colors: 4  # 4-color palette for e-ink
+
+# Text Rendering
+text:
+  font_size: 12
+  line_spacing: 4
+  max_description_length: 200  # Characters
+
+# Cache Settings
+cache:
+  maps_dir: "cache/maps"
+  manuls_dir: "cache/manuls"
+  max_age_hours: 168  # 1 week
+
+# Local Manul Storage (fallback)
+local_manuls:
+  directory: "local_manuls"
+  metadata_file: "local_manuls/metadata.json"
+
+# Web Scraping Settings
+scraping:
+  manulization_url: "https://manulization.com/manuls/"
+  user_agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+  timeout: 10
+  retry_attempts: 3
+  retry_delay: 2
+
+# Logging
+logging:
+  level: "INFO"  # DEBUG, INFO, WARNING, ERROR
+  file: "manul_display.log"
