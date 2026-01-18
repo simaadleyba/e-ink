@@ -4,11 +4,14 @@ Manul Scraper Module
 - Uses fixed allow-list from manul_urls.py (no crawling / guessing)
 - Reads YAML config (because manul_display passes config_path)
 - Returns a ManulData object with .image/.name/.location/.description
+ - System dependency for WebP decoding: sudo apt-get install -y webp (dwebp)
 """
 
 import logging
 import random
 import re
+import subprocess
+import tempfile
 from dataclasses import dataclass
 from io import BytesIO
 from pathlib import Path
@@ -127,17 +130,48 @@ class ManulScraper:
                 best_url = url
         return best_url
 
+    @staticmethod
+    def _decode_image(img_url: str, content: bytes, content_type: str) -> Optional[Image.Image]:
+        is_webp = img_url.lower().endswith(".webp") or content_type.lower().startswith("image/webp")
+        if not is_webp:
+            try:
+                im = Image.open(BytesIO(content))
+                im.load()
+                return im
+            except Exception as e:
+                logger.warning(f"Failed to decode image {img_url}: {e}")
+                return None
+
+        try:
+            with tempfile.TemporaryDirectory() as temp_dir:
+                webp_path = Path(temp_dir) / "img.webp"
+                png_path = Path(temp_dir) / "img.png"
+                webp_path.write_bytes(content)
+                subprocess.run(
+                    ["dwebp", str(webp_path), "-o", str(png_path)],
+                    check=True,
+                    capture_output=True,
+                    text=True,
+                )
+                im = Image.open(png_path)
+                im.load()
+                return im.convert("RGB")
+        except FileNotFoundError:
+            logger.warning("dwebp not found. Install with: sudo apt-get install -y webp")
+            return None
+        except subprocess.CalledProcessError as e:
+            logger.warning(f"dwebp failed for {img_url}: {e.stderr.strip()}")
+            return None
+        except Exception as e:
+            logger.warning(f"Failed to decode WebP image {img_url}: {e}")
+            return None
+
     def _download_image(self, img_url: str) -> Optional[Image.Image]:
         r = self._get(img_url)
         if r is None:
             return None
-        try:
-            im = Image.open(BytesIO(r.content))
-            im.load()
-            return im
-        except Exception as e:
-            logger.warning(f"Failed to decode image {img_url}: {e}")
-            return None
+        content_type = r.headers.get("Content-Type", "")
+        return self._decode_image(img_url, r.content, content_type)
 
     def get_random_manul(self) -> Optional[ManulData]:
         url = random.choice(self.manul_urls)
