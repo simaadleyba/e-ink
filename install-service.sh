@@ -1,98 +1,53 @@
 #!/bin/bash
-# Installation script for the E-Ink Dashboard service
+# Install systemd units for the e-ink dashboard.
 
-set -e
-
-echo "=== E-Ink Dashboard Service Installer ==="
-echo ""
+set -euo pipefail
 
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-echo "Project directory: $PROJECT_DIR"
-echo ""
+SERVICE_NAME="eink-dashboard"
+PYTHON_BIN="$(command -v python3)"
+RUN_USER="${SUDO_USER:-$USER}"
 
-# Create systemd service file
-printf "%s\n" "Creating systemd service..."
-sudo tee /etc/systemd/system/dashboard.service > /dev/null <<EOF_SERVICE
+if [[ -z "${PYTHON_BIN}" ]]; then
+  echo "python3 not found in PATH"
+  exit 1
+fi
+
+cat <<EOF | sudo tee "/etc/systemd/system/${SERVICE_NAME}.service" >/dev/null
 [Unit]
-Description=E-Ink Dashboard
+Description=E-Ink Dashboard Refresh
 After=network-online.target
 Wants=network-online.target
-StartLimitIntervalSec=0
 
 [Service]
 Type=oneshot
-ExecStart=/usr/bin/python3 ${PROJECT_DIR}/dashboard.py
 WorkingDirectory=${PROJECT_DIR}
-User=${USER}
+ExecStart=${PYTHON_BIN} ${PROJECT_DIR}/dashboard.py --config ${PROJECT_DIR}/config.yaml
+User=${RUN_USER}
 StandardOutput=journal
 StandardError=journal
-TimeoutStopSec=10
-KillMode=mixed
-Restart=on-failure
-RestartSec=30
+EOF
 
-[Install]
-WantedBy=multi-user.target
-EOF_SERVICE
-
-# Create hourly refresh timer
-printf "%s\n" "Creating hourly timer..."
-sudo tee /etc/systemd/system/dashboard-hourly.service > /dev/null <<EOF_HOURLY
+cat <<EOF | sudo tee "/etc/systemd/system/${SERVICE_NAME}.timer" >/dev/null
 [Unit]
-Description=E-Ink Dashboard Hourly Update
-After=network-online.target
-
-[Service]
-Type=oneshot
-ExecStart=/usr/bin/python3 ${PROJECT_DIR}/dashboard.py
-WorkingDirectory=${PROJECT_DIR}
-User=${USER}
-StandardOutput=journal
-StandardError=journal
-EOF_HOURLY
-
-sudo tee /etc/systemd/system/dashboard-hourly.timer > /dev/null <<EOF_TIMER
-[Unit]
-Description=E-Ink Dashboard Hourly Timer
-Requires=dashboard-hourly.service
+Description=Run E-Ink Dashboard hourly
 
 [Timer]
-OnCalendar=hourly
+OnBootSec=2min
+OnUnitActiveSec=1h
 Persistent=true
-RandomizedDelaySec=300
+RandomizedDelaySec=2min
+Unit=${SERVICE_NAME}.service
 
 [Install]
 WantedBy=timers.target
-EOF_TIMER
+EOF
 
-printf "%s\n" "Reloading systemd..."
 sudo systemctl daemon-reload
+sudo systemctl enable "${SERVICE_NAME}.timer"
+sudo systemctl start "${SERVICE_NAME}.timer"
+sudo systemctl start "${SERVICE_NAME}.service"
 
-printf "%s\n" "Enabling services..."
-sudo systemctl enable dashboard.service
-sudo systemctl enable dashboard-hourly.timer
-
-printf "%s\n" "Starting hourly timer..."
-sudo systemctl start dashboard-hourly.timer
-
-printf "%s\n" ""
-printf "%s\n" "Running initial dashboard update..."
-sudo systemctl start dashboard.service
-
-printf "%s\n" ""
-printf "%s\n" "=== Installation Complete! ==="
-printf "%s\n" ""
-printf "%s\n" "The display will now:"
-printf "%s\n" "  - Update on boot"
-printf "%s\n" "  - Update every hour"
-printf "%s\n" "  - Handle power cycles safely"
-printf "%s\n" ""
-printf "%s\n" "Useful commands:"
-printf "%s\n" "  Check status:     sudo systemctl status dashboard.service"
-printf "%s\n" "  View logs:        journalctl -u dashboard.service -f"
-printf "%s\n" "  Check timer:      sudo systemctl status dashboard-hourly.timer"
-printf "%s\n" "  List next runs:   systemctl list-timers dashboard-hourly.timer"
-printf "%s\n" "  Manual update:    sudo systemctl start dashboard.service"
-printf "%s\n" "  Stop hourly:      sudo systemctl stop dashboard-hourly.timer"
-printf "%s\n" "  Disable auto-run: sudo systemctl disable dashboard.service"
-printf "%s\n" ""
+echo "Installed ${SERVICE_NAME}.service and ${SERVICE_NAME}.timer"
+echo "Status: sudo systemctl status ${SERVICE_NAME}.service"
+echo "Timer:  sudo systemctl status ${SERVICE_NAME}.timer"

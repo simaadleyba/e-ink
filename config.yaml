@@ -1,40 +1,47 @@
-# E-Ink Dashboard Configuration
-
-dashboard:
-  timezone: Europe/Istanbul
-
-reminders:
-  method: caldav
-  username: "<apple_id_email>"
-  app_password: "<app_specific_password>"
-  caldav_url: "<full CalDAV base or principal URL>"
-  list_name: "Reminders"
-  max_items: 8
-  show_completed: false
-
-weather:
-  latitude: 41.0082
-  longitude: 28.9784
-  timezone: Europe/Istanbul
-  timeout: 10
-
-# Display Settings
-# Waveshare 7.5" e-ink
-# Resolution: 800x480
-# Font: IBM Plex Mono
+# E-Ink dashboard configuration (Waveshare 7.5", 800x480)
 
 display:
   width: 800
   height: 480
-  model: "epd7in5_V2"
+  model: epd7in5_V2
 
-text:
-  font_path: "/usr/share/fonts/truetype/ibm-plex/IBMPlexMono-Regular.ttf"
-  font_size: 18
-  header_font_size: 28
-  line_spacing: 6
-  section_spacing: 16
+# Font priority: IBM Plex Mono -> Google Sans Mono -> DejaVu Sans Mono
+fonts:
+  paths:
+    - /usr/share/fonts/truetype/ibm-plex/IBMPlexMono-Regular.ttf
+    - /usr/share/fonts/truetype/google/GoogleSansMono-Regular.ttf
+    - /usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf
+  time_size: 118
+  secondary_size: 28
+  quote_size: 24
+  sidebar_size: 20
 
-logging:
-  level: "INFO"
-  file: "dashboard.log"
+timezones:
+  local: America/Los_Angeles
+  hong_kong: Asia/Hong_Kong
+  boston: America/New_York
+
+map:
+  latitude: 37.7749
+  longitude: -122.4194
+  location_label: San Francisco
+  # Stadia Stamen style; zoom 14 + render_scale 2 is tuned for 7.5" e-ink clarity.
+  zoom: 14
+  render_scale: 2
+  tile_url_template: https://tiles.stadiamaps.com/tiles/stamen_toner/{z}/{x}/{y}.png
+  api_key: null
+  cache_ttl_hours: 24
+  timeout_seconds: 12
+
+quotes:
+  source: local_json
+  quotes_file: eink_dashboard/assets/quotes.json
+  daily_seed: 0
+
+layout:
+  outer_margin: 22
+  sidebar_width: 278
+  separator_width: 2
+  map_margin: 18
+
+cache_dir: cache

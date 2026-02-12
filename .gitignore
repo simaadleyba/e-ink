@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+
+cache/map_tiles/
+preview/*.png
+
+.DS_Store
