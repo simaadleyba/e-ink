@@ -18,11 +18,20 @@ class DisplayConfig:
 
 @dataclass(frozen=True)
 class FontConfig:
-    paths: tuple[str, ...]
-    time_size: int
-    secondary_size: int
+    light_paths: tuple[str, ...]
+    regular_paths: tuple[str, ...]
+    medium_paths: tuple[str, ...]
+    italic_paths: tuple[str, ...]
+    local_time_size: int
+    local_ampm_size: int
+    date_size: int
+    world_label_size: int
+    world_time_size: int
+    world_ampm_size: int
     quote_size: int
-    sidebar_size: int
+    quote_author_size: int
+    map_label_size: int
+    map_coords_size: int
 
 
 @dataclass(frozen=True)
@@ -43,6 +52,7 @@ class TimeConfig:
     local_timezone: str
     hong_kong_timezone: str
     boston_timezone: str
+    seattle_timezone: str
 
 
 @dataclass(frozen=True)
@@ -54,10 +64,13 @@ class QuoteConfig:
 
 @dataclass(frozen=True)
 class LayoutConfig:
-    outer_margin: int
     sidebar_width: int
-    separator_width: int
-    map_margin: int
+    sidebar_padding: int
+    divider_length: int
+    divider_thickness: int
+    world_block_gap: int
+    quote_bottom_padding: int
+    map_label_margin: int
 
 
 @dataclass(frozen=True)
@@ -71,9 +84,26 @@ class DashboardConfig:
     cache_dir: str
 
 
-DEFAULT_FONT_PATHS = (
+DEFAULT_LIGHT_PATHS = (
+    "/usr/share/fonts/truetype/ibm-plex/IBMPlexMono-Light.ttf",
     "/usr/share/fonts/truetype/ibm-plex/IBMPlexMono-Regular.ttf",
-    "/usr/share/fonts/truetype/google/GoogleSansMono-Regular.ttf",
+    "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf",
+)
+
+DEFAULT_REGULAR_PATHS = (
+    "/usr/share/fonts/truetype/ibm-plex/IBMPlexMono-Regular.ttf",
+    "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf",
+)
+
+DEFAULT_MEDIUM_PATHS = (
+    "/usr/share/fonts/truetype/ibm-plex/IBMPlexMono-Medium.ttf",
+    "/usr/share/fonts/truetype/ibm-plex/IBMPlexMono-Regular.ttf",
+    "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf",
+)
+
+DEFAULT_ITALIC_PATHS = (
+    "/usr/share/fonts/truetype/ibm-plex/IBMPlexMono-Italic.ttf",
+    "/usr/share/fonts/truetype/dejavu/DejaVuSansMono-Oblique.ttf",
     "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf",
 )
 
@@ -89,9 +119,9 @@ def _default_local_timezone() -> str:
     return name if name else "UTC"
 
 
-def _as_tuple(values: list[str] | tuple[str, ...] | None) -> tuple[str, ...]:
+def _as_tuple(values: list[str] | tuple[str, ...] | None, fallback: tuple[str, ...]) -> tuple[str, ...]:
     if not values:
-        return DEFAULT_FONT_PATHS
+        return fallback
     return tuple(str(item) for item in values)
 
 
@@ -112,16 +142,25 @@ def load_config(path: Path) -> DashboardConfig:
             model=str(display.get("model", "epd7in5_V2")),
         ),
         fonts=FontConfig(
-            paths=_as_tuple(fonts.get("paths")),
-            time_size=int(fonts.get("time_size", 118)),
-            secondary_size=int(fonts.get("secondary_size", 28)),
-            quote_size=int(fonts.get("quote_size", 24)),
-            sidebar_size=int(fonts.get("sidebar_size", 20)),
+            light_paths=_as_tuple(fonts.get("light_paths"), DEFAULT_LIGHT_PATHS),
+            regular_paths=_as_tuple(fonts.get("regular_paths"), DEFAULT_REGULAR_PATHS),
+            medium_paths=_as_tuple(fonts.get("medium_paths"), DEFAULT_MEDIUM_PATHS),
+            italic_paths=_as_tuple(fonts.get("italic_paths"), DEFAULT_ITALIC_PATHS),
+            local_time_size=int(fonts.get("local_time_size", 42)),
+            local_ampm_size=int(fonts.get("local_ampm_size", 16)),
+            date_size=int(fonts.get("date_size", 14)),
+            world_label_size=int(fonts.get("world_label_size", 11)),
+            world_time_size=int(fonts.get("world_time_size", 23)),
+            world_ampm_size=int(fonts.get("world_ampm_size", 12)),
+            quote_size=int(fonts.get("quote_size", 15)),
+            quote_author_size=int(fonts.get("quote_author_size", 12)),
+            map_label_size=int(fonts.get("map_label_size", 14)),
+            map_coords_size=int(fonts.get("map_coords_size", 10)),
         ),
         map=MapConfig(
-            latitude=float(map_cfg.get("latitude", 42.3601)),
-            longitude=float(map_cfg.get("longitude", -71.0589)),
-            zoom=int(map_cfg.get("zoom", 14)),
+            latitude=float(map_cfg.get("latitude", 40.89)),
+            longitude=float(map_cfg.get("longitude", 29.38)),
+            zoom=int(map_cfg.get("zoom", 15)),
             render_scale=int(map_cfg.get("render_scale", 2)),
             tile_url_template=str(
                 map_cfg.get(
@@ -132,23 +171,27 @@ def load_config(path: Path) -> DashboardConfig:
             api_key=map_cfg.get("api_key") or None,
             cache_ttl_hours=int(map_cfg.get("cache_ttl_hours", 24)),
             timeout_seconds=int(map_cfg.get("timeout_seconds", 12)),
-            location_label=str(map_cfg.get("location_label", "LOCAL MAP")),
+            location_label=str(map_cfg.get("location_label", "Istanbul")),
         ),
         time=TimeConfig(
-            local_timezone=str(time_cfg.get("local", _default_local_timezone())),
+            local_timezone=str(time_cfg.get("local", "Europe/Istanbul")),
             hong_kong_timezone=str(time_cfg.get("hong_kong", "Asia/Hong_Kong")),
             boston_timezone=str(time_cfg.get("boston", "America/New_York")),
+            seattle_timezone=str(time_cfg.get("seattle", "America/Los_Angeles")),
         ),
         quote=QuoteConfig(
             source=str(quote_cfg.get("source", "local_json")),
-            quotes_file=str(quote_cfg.get("quotes_file", "eink_dashboard/assets/quotes.json")),
+            quotes_file=str(quote_cfg.get("quotes_file", "assets/quotes.json")),
             daily_seed=int(quote_cfg.get("daily_seed", 0)),
         ),
         layout=LayoutConfig(
-            outer_margin=int(layout_cfg.get("outer_margin", 22)),
-            sidebar_width=int(layout_cfg.get("sidebar_width", 278)),
-            separator_width=int(layout_cfg.get("separator_width", 2)),
-            map_margin=int(layout_cfg.get("map_margin", 18)),
+            sidebar_width=int(layout_cfg.get("sidebar_width", 160)),
+            sidebar_padding=int(layout_cfg.get("sidebar_padding", 24)),
+            divider_length=int(layout_cfg.get("divider_length", 48)),
+            divider_thickness=int(layout_cfg.get("divider_thickness", 1)),
+            world_block_gap=int(layout_cfg.get("world_block_gap", 18)),
+            quote_bottom_padding=int(layout_cfg.get("quote_bottom_padding", 22)),
+            map_label_margin=int(layout_cfg.get("map_label_margin", 12)),
         ),
         cache_dir=str(payload.get("cache_dir", "cache")),
     )

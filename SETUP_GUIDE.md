@@ -1,39 +1,31 @@
 # E-Ink Dashboard Setup Guide (Waveshare 7.5")
 
-This is the only setup doc you need for this project.
+This project renders an 800x480 black/white dashboard:
 
-## What this dashboard renders
+- Left panel (160px): local 12-hour time, date, Hong Kong/Boston/Seattle clocks, quote
+- Right panel (640px): Stadia Stamen Toner map, center pin, city + coordinates card
 
-- Left sidebar: high-zoom Stadia Stamen map centered on your configured coordinates
-- Main area:
-  - large local time
-  - Hong Kong and Boston times
-  - daily rotating motivational quote from a local JSON file
-
-The design is pure black/white for e-ink readability.
-
-## 1) Connect to Raspberry Pi over SSH
-
-From your laptop:
+## 1) SSH into your Raspberry Pi
 
 ```bash
 ssh pi@<raspberry-pi-ip>
 ```
 
-Find your Pi IP (if needed):
-
-```bash
-hostname -I
-```
-
-If SSH is disabled, enable it once from Raspberry Pi OS:
+If SSH is disabled:
 
 ```bash
 sudo raspi-config
 # Interface Options -> SSH -> Enable
 ```
 
-## 2) Clone project and install dependencies
+## 2) Install system dependencies
+
+```bash
+sudo apt update
+sudo apt install -y python3 python3-pip python3-venv git fonts-ibm-plex fonts-dejavu-core
+```
+
+## 3) Clone and install Python dependencies
 
 ```bash
 git clone <your-repo-url> e-ink
@@ -44,32 +36,18 @@ python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
 ```
 
-## 3) Install fonts (IBM Plex Mono preferred)
+## 4) Waveshare wiring + SPI
 
-```bash
-sudo apt update
-sudo apt install -y fonts-ibm-plex fonts-dejavu-core
-```
+Wire the 7.5" HAT to Raspberry Pi SPI using your HAT revision pinout.
 
-Optional fallback if you manually install Google Sans Mono:
-
-- Place `GoogleSansMono-Regular.ttf` in a system font directory.
-- Keep the configured fallback order in `config.yaml`.
-
-## 4) Wire Waveshare 7.5" HAT to Raspberry Pi (SPI)
-
-Use the official Waveshare wiring for your specific 7.5" HAT revision.
-
-Common SPI signals:
+Typical lines:
 
 - `VCC` -> `3.3V`
 - `GND` -> `GND`
 - `DIN` -> `MOSI` (GPIO10)
 - `CLK` -> `SCLK` (GPIO11)
 - `CS` -> `CE0` (GPIO8)
-- `DC` -> GPIO pin defined by Waveshare library
-- `RST` -> GPIO pin defined by Waveshare library
-- `BUSY` -> GPIO pin defined by Waveshare library
+- `DC`, `RST`, `BUSY` -> the GPIO pins expected by your Waveshare Python driver
 
 Enable SPI:
 
@@ -79,72 +57,54 @@ sudo raspi-config
 sudo reboot
 ```
 
-## 5) Configure dashboard
+## 5) Configure `config.yaml`
 
-Edit `config.yaml`:
+Defaults already match your requested timezones:
+
+- Local: `Europe/Istanbul`
+- World clocks: `Asia/Hong_Kong`, `America/New_York`, `America/Los_Angeles`
+
+Map defaults:
+
+- Stadia Stamen Toner
+- zoom `15`
+- render scale `2`
+- location `40.89, 29.38` (Istanbul)
+
+## 6) API key requirement (Stadia Maps)
+
+- You can run without a key in some environments.
+- For reliable production usage, you should use a Stadia API key.
+- Set it in `config.yaml`:
 
 ```yaml
-timezones:
-  local: America/Los_Angeles
-  hong_kong: Asia/Hong_Kong
-  boston: America/New_York
-
 map:
-  latitude: 37.7749
-  longitude: -122.4194
-  location_label: San Francisco
-  zoom: 14
-  render_scale: 2
-  tile_url_template: https://tiles.stadiamaps.com/tiles/stamen_toner/{z}/{x}/{y}.png
-  api_key: null
+  api_key: "<your_stadia_api_key>"
 ```
 
-Recommended map quality settings for 800x480 e-ink:
-
-- `zoom: 14`
-- `render_scale: 2`
-
-## 6) API / external service requirements
-
-- Map tiles: Stadia Maps (`stamen_toner` style)
-  - API key: optional in config (`map.api_key`) but recommended for reliability and quota control
-  - Sign up and create a key at [Stadia Maps](https://stadiamaps.com/)
-- Quotes: local file `eink_dashboard/assets/quotes.json`
-  - No API key needed
-
-## 7) Preview on laptop before deploying
-
-From project root:
+## 7) Preview on laptop/Pi
 
 ```bash
 python3 dashboard.py --preview
 ```
 
-Output PNG:
+Preview output:
 
 - `preview/dashboard_preview.png`
 
-Custom path:
-
-```bash
-python3 dashboard.py --preview --output /tmp/eink-preview.png
-```
-
-## 8) Run once on the display
+## 8) Run once on display
 
 ```bash
 python3 dashboard.py
 ```
 
-## 9) Auto-refresh with systemd (recommended)
-
-Install units:
+## 9) Enable auto-refresh (systemd)
 
 ```bash
 ./install-service.sh
 ```
 
-Check status:
+Check:
 
 ```bash
 sudo systemctl status eink-dashboard.service
@@ -152,9 +112,7 @@ sudo systemctl status eink-dashboard.timer
 journalctl -u eink-dashboard.service -f
 ```
 
-## 10) Cron fallback (optional)
-
-If you prefer cron instead of systemd:
+## 10) Optional cron fallback
 
 ```bash
 crontab -e
@@ -166,12 +124,3 @@ Add:
 @reboot cd /path/to/e-ink && /usr/bin/python3 dashboard.py --config config.yaml
 0 * * * * cd /path/to/e-ink && /usr/bin/python3 dashboard.py --config config.yaml
 ```
-
-## 11) Troubleshooting
-
-- `ModuleNotFoundError: waveshare_epd`
-  - Install Waveshare Python library compatible with your HAT revision.
-- Font fallback is used unexpectedly
-  - Confirm IBM Plex Mono path exists on Pi.
-- Map area shows crossed placeholder tiles
-  - Check network, tile URL template, and optional Stadia API key.

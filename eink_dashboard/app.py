@@ -60,10 +60,12 @@ class DashboardApp:
         local_tz = self._load_timezone(self.config.time.local_timezone)
         hk_tz = self._load_timezone(self.config.time.hong_kong_timezone)
         bos_tz = self._load_timezone(self.config.time.boston_timezone)
+        sea_tz = self._load_timezone(self.config.time.seattle_timezone)
 
         now_local = datetime.now(local_tz)
         now_hk = now_local.astimezone(hk_tz)
         now_boston = now_local.astimezone(bos_tz)
+        now_seattle = now_local.astimezone(sea_tz)
 
         quote = self.quote_provider.get_daily_quote(now_local)
 
@@ -74,15 +76,15 @@ class DashboardApp:
             local_time=now_local,
             hong_kong_time=now_hk,
             boston_time=now_boston,
+            seattle_time=now_seattle,
             quote=quote,
             map_image=map_image,
         )
 
     def _map_render_size(self) -> tuple[int, int]:
-        sidebar_width = self.config.layout.sidebar_width
-        margin = self.config.layout.map_margin
-        map_size = sidebar_width - (2 * margin)
-        return map_size, map_size
+        map_width = self.config.display.width - self.config.layout.sidebar_width
+        map_height = self.config.display.height
+        return map_width, map_height
 
     def _display_frame(self, frame: Image.Image) -> None:
         if self.epd is None:

@@ -5,28 +5,47 @@ display:
   height: 480
   model: epd7in5_V2
 
-# Font priority: IBM Plex Mono -> Google Sans Mono -> DejaVu Sans Mono
 fonts:
-  paths:
+  # IBM Plex Mono (light/regular/medium/italic) with fallback.
+  light_paths:
+    - /usr/share/fonts/truetype/ibm-plex/IBMPlexMono-Light.ttf
     - /usr/share/fonts/truetype/ibm-plex/IBMPlexMono-Regular.ttf
-    - /usr/share/fonts/truetype/google/GoogleSansMono-Regular.ttf
     - /usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf
-  time_size: 118
-  secondary_size: 28
-  quote_size: 24
-  sidebar_size: 20
+  regular_paths:
+    - /usr/share/fonts/truetype/ibm-plex/IBMPlexMono-Regular.ttf
+    - /usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf
+  medium_paths:
+    - /usr/share/fonts/truetype/ibm-plex/IBMPlexMono-Medium.ttf
+    - /usr/share/fonts/truetype/ibm-plex/IBMPlexMono-Regular.ttf
+    - /usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf
+  italic_paths:
+    - /usr/share/fonts/truetype/ibm-plex/IBMPlexMono-Italic.ttf
+    - /usr/share/fonts/truetype/dejavu/DejaVuSansMono-Oblique.ttf
+    - /usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf
+
+  local_time_size: 42
+  local_ampm_size: 16
+  date_size: 14
+  world_label_size: 11
+  world_time_size: 23
+  world_ampm_size: 12
+  quote_size: 15
+  quote_author_size: 12
+  map_label_size: 14
+  map_coords_size: 10
 
 timezones:
-  local: America/Los_Angeles
+  local: Europe/Istanbul
   hong_kong: Asia/Hong_Kong
   boston: America/New_York
+  seattle: America/Los_Angeles
 
 map:
-  latitude: 37.7749
-  longitude: -122.4194
-  location_label: San Francisco
-  # Stadia Stamen style; zoom 14 + render_scale 2 is tuned for 7.5" e-ink clarity.
-  zoom: 14
+  latitude: 40.89
+  longitude: 29.38
+  location_label: Istanbul
+  # Zoom >=15 for sharper context in a 640x480 map panel.
+  zoom: 15
   render_scale: 2
   tile_url_template: https://tiles.stadiamaps.com/tiles/stamen_toner/{z}/{x}/{y}.png
   api_key: null
@@ -35,13 +54,16 @@ map:
 
 quotes:
   source: local_json
-  quotes_file: eink_dashboard/assets/quotes.json
+  quotes_file: assets/quotes.json
   daily_seed: 0
 
 layout:
-  outer_margin: 22
-  sidebar_width: 278
-  separator_width: 2
-  map_margin: 18
+  sidebar_width: 160
+  sidebar_padding: 24
+  divider_length: 48
+  divider_thickness: 1
+  world_block_gap: 18
+  quote_bottom_padding: 22
+  map_label_margin: 12
 
 cache_dir: cache
