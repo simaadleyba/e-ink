@@ -16,14 +16,14 @@ class DashboardRenderer:
     def __init__(self, config: DashboardConfig):
         self.config = config
 
-        self.local_time_font = self._load_font(config.fonts.light_paths, config.fonts.local_time_size)
+        self.local_time_font = self._load_font(config.fonts.light_paths, config.fonts.local_time_size + 4)
         self.local_ampm_font = self._load_font(config.fonts.medium_paths, config.fonts.local_ampm_size)
-        self.date_font = self._load_font(config.fonts.light_paths, config.fonts.date_size)
-        self.world_label_font = self._load_font(config.fonts.medium_paths, config.fonts.world_label_size)
-        self.world_time_font = self._load_font(config.fonts.regular_paths, config.fonts.world_time_size)
+        self.date_font = self._load_font(config.fonts.light_paths, config.fonts.date_size + 1)
+        self.world_label_font = self._load_font(config.fonts.medium_paths, config.fonts.world_label_size + 1)
+        self.world_time_font = self._load_font(config.fonts.regular_paths, config.fonts.world_time_size + 2)
         self.world_ampm_font = self._load_font(config.fonts.medium_paths, config.fonts.world_ampm_size)
-        self.quote_font = self._load_font(config.fonts.italic_paths, config.fonts.quote_size)
-        self.quote_author_font = self._load_font(config.fonts.medium_paths, config.fonts.quote_author_size)
+        self.quote_font = self._load_font(config.fonts.italic_paths, config.fonts.quote_size + 1)
+        self.quote_author_font = self._load_font(config.fonts.medium_paths, config.fonts.quote_author_size + 1)
         self.map_label_font = self._load_font(config.fonts.medium_paths, config.fonts.map_label_size)
         self.map_coords_font = self._load_font(config.fonts.regular_paths, config.fonts.map_coords_size)
 
@@ -81,6 +81,11 @@ class DashboardRenderer:
         pad = self.config.layout.sidebar_padding
         x = pad
         y = 38
+        clock_to_date_gap = 20
+        date_to_divider_gap = 24
+        divider_to_first_clock_gap = 32
+        city_to_time_gap = 11
+        world_row_gap = self.config.layout.world_block_gap + 14
 
         y = self._draw_time_with_ampm(
             draw=draw,
@@ -93,14 +98,14 @@ class DashboardRenderer:
             ampm_fill=secondary_color,
         )
 
-        y += 14
+        y += clock_to_date_gap
         date_day = local_time.strftime("%a").upper()
         date_value = local_time.strftime("%b %d").upper()
         date_text = f"{date_day},  {date_value}"
         self._draw_tracked_text(draw, x, y, date_text, self.date_font, fill=secondary_color, tracking=1)
         y += self._font_pixel_height(self.date_font)
 
-        y += 18
+        y += date_to_divider_gap
         divider_end = x + self.config.layout.divider_length
         draw.line(
             (x, y, divider_end, y),
@@ -108,14 +113,14 @@ class DashboardRenderer:
             width=max(1, self.config.layout.divider_thickness),
         )
 
-        y += 20
+        y += divider_to_first_clock_gap
         for city, dt in (
             ("HONG KONG", hong_kong_time),
             ("BOSTON", boston_time),
             ("SEATTLE", seattle_time),
         ):
             self._draw_tracked_text(draw, x, y, city, self.world_label_font, fill=secondary_color, tracking=2)
-            y += self._font_pixel_height(self.world_label_font) + 8
+            y += self._font_pixel_height(self.world_label_font) + city_to_time_gap
             y = self._draw_time_with_ampm(
                 draw=draw,
                 x=x,
@@ -126,7 +131,7 @@ class DashboardRenderer:
                 fill=primary_color,
                 ampm_fill=secondary_color,
             )
-            y += self.config.layout.world_block_gap
+            y += world_row_gap
 
         quote_body = f'"{quote.text}"'
         quote_right_padding = 12
@@ -234,7 +239,7 @@ class DashboardRenderer:
         ampm_fill: int,
     ) -> int:
         time_text = time_dt.strftime("%I:%M").lstrip("0") or "12:00"
-        ampm_text = time_dt.strftime("%p").lower()
+        ampm_text = time_dt.strftime("%p")
 
         draw.text((x, y), time_text, font=big_font, fill=fill)
 
