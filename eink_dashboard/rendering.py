@@ -18,7 +18,7 @@ class DashboardRenderer:
 
         self.local_time_font = self._load_font(config.fonts.light_paths, config.fonts.local_time_size)
         self.local_ampm_font = self._load_font(config.fonts.medium_paths, config.fonts.local_ampm_size)
-        self.date_font = self._load_font(config.fonts.medium_paths, config.fonts.date_size)
+        self.date_font = self._load_font(config.fonts.light_paths, config.fonts.date_size)
         self.world_label_font = self._load_font(config.fonts.medium_paths, config.fonts.world_label_size)
         self.world_time_font = self._load_font(config.fonts.regular_paths, config.fonts.world_time_size)
         self.world_ampm_font = self._load_font(config.fonts.medium_paths, config.fonts.world_ampm_size)
@@ -35,6 +35,9 @@ class DashboardRenderer:
         seattle_time: datetime,
         quote: Quote,
         map_image: Image.Image,
+        map_city_name: str,
+        map_city_latitude: float,
+        map_city_longitude: float,
     ) -> Image.Image:
         width = self.config.display.width
         height = self.config.display.height
@@ -51,7 +54,15 @@ class DashboardRenderer:
         canvas.paste(map_for_display, (sidebar_width, 0))
 
         self._draw_left_panel(draw, local_time, hong_kong_time, boston_time, seattle_time, quote, height)
-        self._draw_map_overlays(draw, width, height, sidebar_width)
+        self._draw_map_overlays(
+            draw=draw,
+            width=width,
+            height=height,
+            map_x=sidebar_width,
+            city_name=map_city_name,
+            city_latitude=map_city_latitude,
+            city_longitude=map_city_longitude,
+        )
 
         return canvas.point(lambda px: 255 if px > 127 else 0, mode="1").convert("L")
 
@@ -130,7 +141,16 @@ class DashboardRenderer:
         quote_top += 4
         self._draw_tracked_text(draw, x, quote_top, author_text, self.quote_author_font, fill=255, tracking=1)
 
-    def _draw_map_overlays(self, draw: ImageDraw.ImageDraw, width: int, height: int, map_x: int) -> None:
+    def _draw_map_overlays(
+        self,
+        draw: ImageDraw.ImageDraw,
+        width: int,
+        height: int,
+        map_x: int,
+        city_name: str,
+        city_latitude: float,
+        city_longitude: float,
+    ) -> None:
         map_width = width - map_x
         pin_x = map_x + (map_width // 2)
         pin_y = height // 2
@@ -142,8 +162,8 @@ class DashboardRenderer:
         draw.ellipse((pin_x - outer, pin_y - outer, pin_x + outer, pin_y + outer), outline=0, width=2)
         draw.ellipse((pin_x - inner, pin_y - inner, pin_x + inner, pin_y + inner), fill=0)
 
-        city_text = self._spaced_caps(self.config.map.location_label)
-        coords_text = self._format_coords(self.config.map.latitude, self.config.map.longitude)
+        city_text = self._spaced_caps(city_name)
+        coords_text = self._format_coords(city_latitude, city_longitude)
 
         city_bbox = draw.textbbox((0, 0), city_text, font=self.map_label_font)
         coords_bbox = draw.textbbox((0, 0), coords_text, font=self.map_coords_font)
@@ -160,7 +180,7 @@ class DashboardRenderer:
         box_left = box_right - text_width - (pad_x * 2)
         box_top = box_bottom - text_height - (pad_y * 2)
 
-        draw.rectangle((box_left, box_top, box_right, box_bottom), fill=255, outline=0, width=1)
+        draw.rectangle((box_left, box_top, box_right, box_bottom), fill=255)
 
         text_x = box_left + pad_x
         text_y = box_top + pad_y

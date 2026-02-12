@@ -9,7 +9,7 @@ from zoneinfo import ZoneInfo
 
 from PIL import Image
 
-from eink_dashboard.config import DashboardConfig, load_config
+from eink_dashboard.config import DashboardConfig, MapCity, load_config
 from eink_dashboard.providers.map_provider import MapProvider
 from eink_dashboard.providers.quote_provider import QuoteProvider
 from eink_dashboard.rendering import DashboardRenderer
@@ -66,11 +66,17 @@ class DashboardApp:
         now_hk = now_local.astimezone(hk_tz)
         now_boston = now_local.astimezone(bos_tz)
         now_seattle = now_local.astimezone(sea_tz)
+        map_city = self._select_city(now_local)
 
         quote = self.quote_provider.get_daily_quote(now_local)
 
         map_size = self._map_render_size()
-        map_image = self.map_provider.get_map(map_size[0], map_size[1])
+        map_image = self.map_provider.get_map(
+            width=map_size[0],
+            height=map_size[1],
+            latitude=map_city.latitude,
+            longitude=map_city.longitude,
+        )
 
         return self.renderer.render(
             local_time=now_local,
@@ -79,6 +85,9 @@ class DashboardApp:
             seattle_time=now_seattle,
             quote=quote,
             map_image=map_image,
+            map_city_name=map_city.name,
+            map_city_latitude=map_city.latitude,
+            map_city_longitude=map_city.longitude,
         )
 
     def _map_render_size(self) -> tuple[int, int]:
@@ -116,3 +125,11 @@ class DashboardApp:
         except Exception:  # noqa: BLE001
             logger.warning("Invalid timezone '%s', falling back to UTC", name)
             return ZoneInfo("UTC")
+
+    def _select_city(self, now_local: datetime) -> MapCity:
+        if self.config.map_cities:
+            index = now_local.timetuple().tm_yday % len(self.config.map_cities)
+            return self.config.map_cities[index]
+
+        logger.warning("No map_cities configured, using Istanbul default")
+        return MapCity(name="Istanbul", latitude=41.0082, longitude=28.9784)

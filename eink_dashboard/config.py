@@ -6,8 +6,6 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
-import yaml
-
 
 @dataclass(frozen=True)
 class DisplayConfig:
@@ -36,15 +34,20 @@ class FontConfig:
 
 @dataclass(frozen=True)
 class MapConfig:
-    latitude: float
-    longitude: float
     zoom: int
     render_scale: int
     tile_url_template: str
     api_key: str | None
     cache_ttl_hours: int
     timeout_seconds: int
-    location_label: str
+    user_agent: str
+
+
+@dataclass(frozen=True)
+class MapCity:
+    name: str
+    latitude: float
+    longitude: float
 
 
 @dataclass(frozen=True)
@@ -78,6 +81,7 @@ class DashboardConfig:
     display: DisplayConfig
     fonts: FontConfig
     map: MapConfig
+    map_cities: tuple[MapCity, ...]
     time: TimeConfig
     quote: QuoteConfig
     layout: LayoutConfig
@@ -126,6 +130,8 @@ def _as_tuple(values: list[str] | tuple[str, ...] | None, fallback: tuple[str, .
 
 
 def load_config(path: Path) -> DashboardConfig:
+    import yaml
+
     payload = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
 
     display = payload.get("display", {})
@@ -148,30 +154,39 @@ def load_config(path: Path) -> DashboardConfig:
             italic_paths=_as_tuple(fonts.get("italic_paths"), DEFAULT_ITALIC_PATHS),
             local_time_size=int(fonts.get("local_time_size", 42)),
             local_ampm_size=int(fonts.get("local_ampm_size", 16)),
-            date_size=int(fonts.get("date_size", 14)),
+            date_size=int(fonts.get("date_size", 9)),
             world_label_size=int(fonts.get("world_label_size", 11)),
             world_time_size=int(fonts.get("world_time_size", 23)),
             world_ampm_size=int(fonts.get("world_ampm_size", 12)),
             quote_size=int(fonts.get("quote_size", 15)),
             quote_author_size=int(fonts.get("quote_author_size", 12)),
-            map_label_size=int(fonts.get("map_label_size", 14)),
+            map_label_size=int(fonts.get("map_label_size", 12)),
             map_coords_size=int(fonts.get("map_coords_size", 10)),
         ),
         map=MapConfig(
-            latitude=float(map_cfg.get("latitude", 40.89)),
-            longitude=float(map_cfg.get("longitude", 29.38)),
             zoom=int(map_cfg.get("zoom", 15)),
             render_scale=int(map_cfg.get("render_scale", 2)),
             tile_url_template=str(
                 map_cfg.get(
                     "tile_url_template",
-                    "https://tiles.stadiamaps.com/tiles/stamen_toner/{z}/{x}/{y}.png",
+                    "https://tiles.stadiamaps.com/tiles/stamen_toner/{z}/{x}/{y}@2x.png",
                 )
             ),
             api_key=map_cfg.get("api_key") or None,
             cache_ttl_hours=int(map_cfg.get("cache_ttl_hours", 24)),
             timeout_seconds=int(map_cfg.get("timeout_seconds", 12)),
-            location_label=str(map_cfg.get("location_label", "Istanbul")),
+            user_agent=str(
+                map_cfg.get("user_agent", "eink-dashboard/1.0 (+https://github.com/)")
+            ),
+        ),
+        map_cities=tuple(
+            MapCity(
+                name=str(row.get("name", "Unknown")).strip() or "Unknown",
+                latitude=float(row.get("latitude")),
+                longitude=float(row.get("longitude")),
+            )
+            for row in payload.get("map_cities", [])
+            if row.get("latitude") is not None and row.get("longitude") is not None
         ),
         time=TimeConfig(
             local_timezone=str(time_cfg.get("local", "Europe/Istanbul")),

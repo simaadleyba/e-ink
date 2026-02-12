@@ -66,15 +66,16 @@ Defaults already match your requested timezones:
 
 Map defaults:
 
-- Stadia Stamen Toner
+- Provider: Stadia Stamen Toner `@2x` tiles
 - zoom `15`
 - render scale `2`
-- location `40.89, 29.38` (Istanbul)
+- map rotates daily across `map_cities` in `config.yaml` using `day_of_year % number_of_cities`
 
 ## 6) API key requirement (Stadia Maps)
 
-- You can run without a key in some environments.
+- You can run without a key in low-volume/dev usage.
 - For reliable production usage, you should use a Stadia API key.
+- Get a key from [Stadia Maps](https://stadiamaps.com/).
 - Set it in `config.yaml`:
 
 ```yaml

@@ -25,13 +25,13 @@ fonts:
 
   local_time_size: 42
   local_ampm_size: 16
-  date_size: 14
+  date_size: 9
   world_label_size: 11
   world_time_size: 23
   world_ampm_size: 12
   quote_size: 15
   quote_author_size: 12
-  map_label_size: 14
+  map_label_size: 12
   map_coords_size: 10
 
 timezones:
@@ -41,16 +41,73 @@ timezones:
   seattle: America/Los_Angeles
 
 map:
-  latitude: 40.89
-  longitude: 29.38
-  location_label: Istanbul
-  # Zoom >=15 for sharper context in a 640x480 map panel.
+  # Stadia Stamen Toner @2x tiles.
   zoom: 15
   render_scale: 2
-  tile_url_template: https://tiles.stadiamaps.com/tiles/stamen_toner/{z}/{x}/{y}.png
+  tile_url_template: https://tiles.stadiamaps.com/tiles/stamen_toner/{z}/{x}/{y}@2x.png
   api_key: null
   cache_ttl_hours: 24
   timeout_seconds: 12
+  user_agent: eink-dashboard/1.0 (+https://github.com/)
+
+map_cities:
+  - name: Istanbul
+    latitude: 41.0082
+    longitude: 28.9784
+  - name: Boston
+    latitude: 42.3601
+    longitude: -71.0589
+  - name: Tokyo
+    latitude: 35.6762
+    longitude: 139.6503
+  - name: Sapporo
+    latitude: 43.0618
+    longitude: 141.3545
+  - name: San Francisco
+    latitude: 37.7749
+    longitude: -122.4194
+  - name: Los Angeles
+    latitude: 34.0522
+    longitude: -118.2437
+  - name: Seattle
+    latitude: 47.6062
+    longitude: -122.3321
+  - name: New York
+    latitude: 40.7128
+    longitude: -74.0060
+  - name: Vancouver
+    latitude: 49.2827
+    longitude: -123.1207
+  - name: Toronto
+    latitude: 43.6532
+    longitude: -79.3832
+  - name: Sydney
+    latitude: -33.8688
+    longitude: 151.2093
+  - name: Melbourne
+    latitude: -37.8136
+    longitude: 144.9631
+  - name: Taipei
+    latitude: 25.0330
+    longitude: 121.5654
+  - name: Hong Kong
+    latitude: 22.3193
+    longitude: 114.1694
+  - name: Beijing
+    latitude: 39.9042
+    longitude: 116.4074
+  - name: Shanghai
+    latitude: 31.2304
+    longitude: 121.4737
+  - name: Singapore
+    latitude: 1.3521
+    longitude: 103.8198
+  - name: Seoul
+    latitude: 37.5665
+    longitude: 126.9780
+  - name: Bangkok
+    latitude: 13.7563
+    longitude: 100.5018
 
 quotes:
   source: local_json

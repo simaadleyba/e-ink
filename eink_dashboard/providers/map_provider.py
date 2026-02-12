@@ -18,14 +18,16 @@ logger = logging.getLogger(__name__)
 class MapProvider:
     """Render a high-detail map crop around a configured lat/lon."""
 
-    TILE_SIZE = 256
+    BASE_TILE_SIZE = 256
 
     def __init__(self, config: MapConfig, cache_root: Path):
         self.config = config
         self.cache_root = cache_root / "map_tiles"
         self.cache_root.mkdir(parents=True, exist_ok=True)
+        self.tile_scale = 2 if "@2x" in self.config.tile_url_template else 1
+        self.tile_size = self.BASE_TILE_SIZE * self.tile_scale
 
-    def get_map(self, width: int, height: int) -> Image.Image:
+    def get_map(self, width: int, height: int, latitude: float, longitude: float) -> Image.Image:
         render_scale = max(1, self.config.render_scale)
         source_width = width * render_scale
         source_height = height * render_scale
@@ -34,8 +36,8 @@ class MapProvider:
 
         try:
             map_img = self._render_viewport(
-                lat=self.config.latitude,
-                lon=self.config.longitude,
+                lat=latitude,
+                lon=longitude,
                 zoom=zoom,
                 width=source_width,
                 height=source_height,
@@ -50,19 +52,19 @@ class MapProvider:
         return self._high_contrast(map_img)
 
     def _render_viewport(self, lat: float, lon: float, zoom: int, width: int, height: int) -> Image.Image:
-        world_size = self.TILE_SIZE * (2**zoom)
+        world_size = self.tile_size * (2**zoom)
         center_x, center_y = self._lat_lon_to_world(lat, lon, world_size)
 
         left = center_x - (width / 2)
         top = center_y - (height / 2)
 
-        min_tile_x = math.floor(left / self.TILE_SIZE)
-        min_tile_y = math.floor(top / self.TILE_SIZE)
-        max_tile_x = math.floor((left + width - 1) / self.TILE_SIZE)
-        max_tile_y = math.floor((top + height - 1) / self.TILE_SIZE)
+        min_tile_x = math.floor(left / self.tile_size)
+        min_tile_y = math.floor(top / self.tile_size)
+        max_tile_x = math.floor((left + width - 1) / self.tile_size)
+        max_tile_y = math.floor((top + height - 1) / self.tile_size)
 
-        mosaic_width = (max_tile_x - min_tile_x + 1) * self.TILE_SIZE
-        mosaic_height = (max_tile_y - min_tile_y + 1) * self.TILE_SIZE
+        mosaic_width = (max_tile_x - min_tile_x + 1) * self.tile_size
+        mosaic_height = (max_tile_y - min_tile_y + 1) * self.tile_size
         mosaic = Image.new("L", (mosaic_width, mosaic_height), color=255)
 
         tiles_per_axis = 2**zoom
@@ -72,33 +74,41 @@ class MapProvider:
                 wrapped_x = tile_x % tiles_per_axis
                 clamped_y = max(0, min(tile_y, tiles_per_axis - 1))
                 tile = self._load_tile(zoom, wrapped_x, clamped_y)
-                paste_x = (tile_x - min_tile_x) * self.TILE_SIZE
-                paste_y = (tile_y - min_tile_y) * self.TILE_SIZE
+                paste_x = (tile_x - min_tile_x) * self.tile_size
+                paste_y = (tile_y - min_tile_y) * self.tile_size
                 mosaic.paste(tile, (paste_x, paste_y))
 
-        crop_x = int(left - (min_tile_x * self.TILE_SIZE))
-        crop_y = int(top - (min_tile_y * self.TILE_SIZE))
+        crop_x = int(left - (min_tile_x * self.tile_size))
+        crop_y = int(top - (min_tile_y * self.tile_size))
         return mosaic.crop((crop_x, crop_y, crop_x + width, crop_y + height))
 
     def _load_tile(self, zoom: int, tile_x: int, tile_y: int) -> Image.Image:
-        tile_path = self.cache_root / str(zoom) / str(tile_x) / f"{tile_y}.png"
+        tile_path = self.cache_root / "stadia" / str(zoom) / str(tile_x) / f"{tile_y}.png"
         tile_path.parent.mkdir(parents=True, exist_ok=True)
 
         if tile_path.exists() and self._is_cache_fresh(tile_path):
             return self._read_tile(tile_path)
 
-        url = self.config.tile_url_template.format(z=zoom, x=tile_x, y=tile_y)
+        base_url = self._render_url(self.config.tile_url_template, zoom, tile_x, tile_y)
         params: dict[str, str] = {}
         if self.config.api_key:
             params["api_key"] = self.config.api_key
 
+        headers = {"User-Agent": self.config.user_agent}
+        requested_url = requests.Request("GET", base_url, params=params or None).prepare().url
+        logger.info("Requesting tile URL: %s", requested_url)
+
         try:
-            response = requests.get(url, params=params or None, timeout=self.config.timeout_seconds)
+            response = requests.get(
+                requested_url,
+                headers=headers,
+                timeout=self.config.timeout_seconds,
+            )
             response.raise_for_status()
             tile_path.write_bytes(response.content)
             return self._read_tile(tile_path)
         except Exception as exc:  # noqa: BLE001
-            logger.debug("Tile download failed for z%s/%s/%s: %s", zoom, tile_x, tile_y, exc)
+            logger.warning("Tile download failed for z%s/%s/%s: %s", zoom, tile_x, tile_y, exc)
             if tile_path.exists():
                 return self._read_tile(tile_path)
             return self._missing_tile()
@@ -120,11 +130,11 @@ class MapProvider:
         return image.convert("L").point(lambda px: 0 if px < 180 else 255, mode="1").convert("L")
 
     def _missing_tile(self) -> Image.Image:
-        tile = Image.new("L", (self.TILE_SIZE, self.TILE_SIZE), 255)
+        tile = Image.new("L", (self.tile_size, self.tile_size), 255)
         draw = ImageDraw.Draw(tile)
-        draw.rectangle((0, 0, self.TILE_SIZE - 1, self.TILE_SIZE - 1), outline=0, width=2)
-        draw.line((0, 0, self.TILE_SIZE - 1, self.TILE_SIZE - 1), fill=0, width=2)
-        draw.line((self.TILE_SIZE - 1, 0, 0, self.TILE_SIZE - 1), fill=0, width=2)
+        draw.rectangle((0, 0, self.tile_size - 1, self.tile_size - 1), outline=0, width=2)
+        draw.line((0, 0, self.tile_size - 1, self.tile_size - 1), fill=0, width=2)
+        draw.line((self.tile_size - 1, 0, 0, self.tile_size - 1), fill=0, width=2)
         return tile
 
     def _fallback_image(self, width: int, height: int) -> Image.Image:
@@ -137,4 +147,10 @@ class MapProvider:
 
     def _read_tile(self, path: Path) -> Image.Image:
         with Image.open(path) as tile:
-            return tile.convert("L")
+            image = tile.convert("L")
+        if image.size != (self.tile_size, self.tile_size):
+            image = image.resize((self.tile_size, self.tile_size), Image.Resampling.LANCZOS)
+        return image
+
+    def _render_url(self, template: str, zoom: int, tile_x: int, tile_y: int) -> str:
+        return template.format(z=zoom, x=tile_x, y=tile_y, api_key=self.config.api_key or "")
