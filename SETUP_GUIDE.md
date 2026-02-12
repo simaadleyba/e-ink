@@ -67,7 +67,7 @@ Defaults already match your requested timezones:
 Map defaults:
 
 - Provider: Stadia Stamen Toner `@2x` tiles
-- zoom `15`
+- zoom `14`
 - render scale `2`
 - map rotates daily across `map_cities` in `config.yaml` using `day_of_year % number_of_cities`
 

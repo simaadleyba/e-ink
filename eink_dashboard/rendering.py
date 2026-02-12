@@ -76,6 +76,8 @@ class DashboardRenderer:
         quote: Quote,
         panel_height: int,
     ) -> None:
+        primary_color = 255
+        secondary_color = 153
         pad = self.config.layout.sidebar_padding
         x = pad
         y = 38
@@ -87,14 +89,16 @@ class DashboardRenderer:
             time_dt=local_time,
             big_font=self.local_time_font,
             ampm_font=self.local_ampm_font,
-            fill=255,
-            ampm_fill=255,
+            fill=primary_color,
+            ampm_fill=secondary_color,
         )
 
         y += 14
-        date_text = local_time.strftime("%a, %b %d").upper()
-        draw.text((x, y), date_text, font=self.date_font, fill=255)
-        y += self._text_height(draw, date_text, self.date_font)
+        date_day = local_time.strftime("%a").upper()
+        date_value = local_time.strftime("%b %d").upper()
+        date_text = f"{date_day},  {date_value}"
+        self._draw_tracked_text(draw, x, y, date_text, self.date_font, fill=secondary_color, tracking=2)
+        y += self._font_pixel_height(self.date_font)
 
         y += 18
         divider_end = x + self.config.layout.divider_length
@@ -110,7 +114,7 @@ class DashboardRenderer:
             ("BOSTON", boston_time),
             ("SEATTLE", seattle_time),
         ):
-            self._draw_tracked_text(draw, x, y, city, self.world_label_font, fill=255, tracking=2)
+            self._draw_tracked_text(draw, x, y, city, self.world_label_font, fill=secondary_color, tracking=2)
             y += self._font_pixel_height(self.world_label_font) + 8
             y = self._draw_time_with_ampm(
                 draw=draw,
@@ -119,14 +123,15 @@ class DashboardRenderer:
                 time_dt=dt,
                 big_font=self.world_time_font,
                 ampm_font=self.world_ampm_font,
-                fill=255,
-                ampm_fill=255,
+                fill=primary_color,
+                ampm_fill=secondary_color,
             )
             y += self.config.layout.world_block_gap
 
         quote_body = f'"{quote.text}"'
-        max_quote_width = self.config.layout.sidebar_width - (pad * 2)
-        quote_lines = self._wrap_text(quote_body, self.quote_font, max_quote_width, max_lines=4)
+        quote_right_padding = 10
+        max_quote_width = self.config.layout.sidebar_width - (pad * 2) - quote_right_padding
+        quote_lines = self._wrap_text(quote_body, self.quote_font, max_quote_width)
         quote_line_height = self._font_pixel_height(self.quote_font) + 7
         author_text = f"- {quote.author.upper()}"
         author_height = self._text_height(draw, author_text, self.quote_author_font)
@@ -135,11 +140,19 @@ class DashboardRenderer:
         quote_top = panel_height - self.config.layout.quote_bottom_padding - quote_block_height
 
         for line in quote_lines:
-            draw.text((x, quote_top), line, font=self.quote_font, fill=255)
+            draw.text((x, quote_top), line, font=self.quote_font, fill=primary_color)
             quote_top += quote_line_height
 
         quote_top += 4
-        self._draw_tracked_text(draw, x, quote_top, author_text, self.quote_author_font, fill=255, tracking=1)
+        self._draw_tracked_text(
+            draw,
+            x,
+            quote_top,
+            author_text,
+            self.quote_author_font,
+            fill=secondary_color,
+            tracking=1,
+        )
 
     def _draw_map_overlays(
         self,
@@ -222,7 +235,6 @@ class DashboardRenderer:
         text: str,
         font: ImageFont.FreeTypeFont,
         max_width: int,
-        max_lines: int,
     ) -> list[str]:
         words = text.split()
         lines: list[str] = []
@@ -236,10 +248,8 @@ class DashboardRenderer:
                 if current:
                     lines.append(" ".join(current))
                 current = [word]
-                if len(lines) == max_lines:
-                    break
 
-        if current and len(lines) < max_lines:
+        if current:
             lines.append(" ".join(current))
 
         if words and not lines:

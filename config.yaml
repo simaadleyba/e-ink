@@ -23,9 +23,9 @@ fonts:
     - /usr/share/fonts/truetype/dejavu/DejaVuSansMono-Oblique.ttf
     - /usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf
 
-  local_time_size: 42
+  local_time_size: 36
   local_ampm_size: 16
-  date_size: 9
+  date_size: 8
   world_label_size: 11
   world_time_size: 23
   world_ampm_size: 12
@@ -42,7 +42,7 @@ timezones:
 
 map:
   # Stadia Stamen Toner @2x tiles.
-  zoom: 15
+  zoom: 14
   render_scale: 2
   tile_url_template: https://tiles.stadiamaps.com/tiles/stamen_toner/{z}/{x}/{y}@2x.png
   api_key: null

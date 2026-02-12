@@ -152,9 +152,9 @@ def load_config(path: Path) -> DashboardConfig:
             regular_paths=_as_tuple(fonts.get("regular_paths"), DEFAULT_REGULAR_PATHS),
             medium_paths=_as_tuple(fonts.get("medium_paths"), DEFAULT_MEDIUM_PATHS),
             italic_paths=_as_tuple(fonts.get("italic_paths"), DEFAULT_ITALIC_PATHS),
-            local_time_size=int(fonts.get("local_time_size", 42)),
+            local_time_size=int(fonts.get("local_time_size", 36)),
             local_ampm_size=int(fonts.get("local_ampm_size", 16)),
-            date_size=int(fonts.get("date_size", 9)),
+            date_size=int(fonts.get("date_size", 8)),
             world_label_size=int(fonts.get("world_label_size", 11)),
             world_time_size=int(fonts.get("world_time_size", 23)),
             world_ampm_size=int(fonts.get("world_ampm_size", 12)),
@@ -164,7 +164,7 @@ def load_config(path: Path) -> DashboardConfig:
             map_coords_size=int(fonts.get("map_coords_size", 10)),
         ),
         map=MapConfig(
-            zoom=int(map_cfg.get("zoom", 15)),
+            zoom=int(map_cfg.get("zoom", 14)),
             render_scale=int(map_cfg.get("render_scale", 2)),
             tile_url_template=str(
                 map_cfg.get(
