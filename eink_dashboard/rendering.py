@@ -64,7 +64,7 @@ class DashboardRenderer:
             city_longitude=map_city_longitude,
         )
 
-        return canvas.point(lambda px: 255 if px > 127 else 0, mode="1").convert("L")
+        return canvas
 
     def _draw_left_panel(
         self,
@@ -77,7 +77,7 @@ class DashboardRenderer:
         panel_height: int,
     ) -> None:
         primary_color = 255
-        secondary_color = 153
+        secondary_color = 136
         pad = self.config.layout.sidebar_padding
         x = pad
         y = 38
@@ -97,7 +97,7 @@ class DashboardRenderer:
         date_day = local_time.strftime("%a").upper()
         date_value = local_time.strftime("%b %d").upper()
         date_text = f"{date_day},  {date_value}"
-        self._draw_tracked_text(draw, x, y, date_text, self.date_font, fill=secondary_color, tracking=2)
+        self._draw_tracked_text(draw, x, y, date_text, self.date_font, fill=secondary_color, tracking=1)
         y += self._font_pixel_height(self.date_font)
 
         y += 18
@@ -129,21 +129,42 @@ class DashboardRenderer:
             y += self.config.layout.world_block_gap
 
         quote_body = f'"{quote.text}"'
-        quote_right_padding = 10
+        quote_right_padding = 12
         max_quote_width = self.config.layout.sidebar_width - (pad * 2) - quote_right_padding
-        quote_lines = self._wrap_text(quote_body, self.quote_font, max_quote_width)
-        quote_line_height = self._font_pixel_height(self.quote_font) + 7
+        quote_line_height = self._font_pixel_height(self.quote_font) + 3
         author_text = f"- {quote.author.upper()}"
         author_height = self._text_height(draw, author_text, self.quote_author_font)
+        author_gap = 4
 
-        quote_block_height = len(quote_lines) * quote_line_height + 10 + author_height
-        quote_top = panel_height - self.config.layout.quote_bottom_padding - quote_block_height
+        min_quote_top = y + 20
+        available_height = panel_height - self.config.layout.quote_bottom_padding - min_quote_top
+        if available_height < (author_height + author_gap + quote_line_height):
+            return
+
+        max_lines = 3
+        min_block_two_lines = (quote_line_height * 2) + author_gap + author_height
+        if available_height < min_block_two_lines:
+            max_lines = 1
+        elif available_height < ((quote_line_height * 3) + author_gap + author_height):
+            max_lines = 2
+
+        quote_lines = self._wrap_text(
+            text=quote_body,
+            font=self.quote_font,
+            max_width=max_quote_width,
+            max_lines=max_lines,
+        )
+        if len(quote_lines) > 3:
+            quote_lines = quote_lines[:3]
+
+        quote_block_height = len(quote_lines) * quote_line_height + author_gap + author_height
+        quote_top = max(min_quote_top, panel_height - self.config.layout.quote_bottom_padding - quote_block_height)
 
         for line in quote_lines:
             draw.text((x, quote_top), line, font=self.quote_font, fill=primary_color)
             quote_top += quote_line_height
 
-        quote_top += 4
+        quote_top += author_gap
         self._draw_tracked_text(
             draw,
             x,
@@ -213,7 +234,7 @@ class DashboardRenderer:
         ampm_fill: int,
     ) -> int:
         time_text = time_dt.strftime("%I:%M").lstrip("0") or "12:00"
-        ampm_text = time_dt.strftime("%p")
+        ampm_text = time_dt.strftime("%p").lower()
 
         draw.text((x, y), time_text, font=big_font, fill=fill)
 
@@ -221,11 +242,11 @@ class DashboardRenderer:
         time_width = time_bbox[2] - time_bbox[0]
         time_height = time_bbox[3] - time_bbox[1]
 
-        big_ascent, _ = big_font.getmetrics()
-        ampm_ascent, _ = ampm_font.getmetrics()
+        ampm_bbox = draw.textbbox((0, 0), ampm_text, font=ampm_font)
+        ampm_height = ampm_bbox[3] - ampm_bbox[1]
 
         ampm_x = x + time_width + 7
-        ampm_y = y + (big_ascent - ampm_ascent)
+        ampm_y = y + max(0, time_height - ampm_height - 1)
         draw.text((ampm_x, ampm_y), ampm_text, font=ampm_font, fill=ampm_fill)
 
         return y + time_height
@@ -235,25 +256,30 @@ class DashboardRenderer:
         text: str,
         font: ImageFont.FreeTypeFont,
         max_width: int,
+        max_lines: int,
     ) -> list[str]:
         words = text.split()
         lines: list[str] = []
-        current: list[str] = []
+        index = 0
 
-        for word in words:
-            candidate = " ".join(current + [word]) if current else word
-            if font.getlength(candidate) <= max_width:
-                current.append(word)
-            else:
-                if current:
-                    lines.append(" ".join(current))
-                current = [word]
-
-        if current:
-            lines.append(" ".join(current))
+        while index < len(words) and len(lines) < max_lines:
+            current = words[index]
+            index += 1
+            while index < len(words):
+                candidate = f"{current} {words[index]}"
+                if font.getlength(candidate) <= max_width:
+                    current = candidate
+                    index += 1
+                else:
+                    break
+            lines.append(current)
 
         if words and not lines:
             return [text[: max(1, max_width // 8)]]
+
+        if index < len(words) and lines:
+            lines[-1] = self._truncate_with_ellipsis(lines[-1], font, max_width)
+
         return lines
 
     def _draw_tracked_text(
@@ -266,10 +292,10 @@ class DashboardRenderer:
         fill: int,
         tracking: int,
     ) -> None:
-        current_x = x
+        current_x = float(x)
         for ch in text:
-            draw.text((current_x, y), ch, font=font, fill=fill)
-            current_x += int(font.getlength(ch)) + tracking
+            draw.text((int(round(current_x)), y), ch, font=font, fill=fill)
+            current_x += font.getlength(ch) + tracking
 
     def _load_font(self, paths: tuple[str, ...], size: int) -> ImageFont.FreeTypeFont:
         for path in paths:
@@ -299,3 +325,17 @@ class DashboardRenderer:
         lat_suffix = "N" if lat >= 0 else "S"
         lon_suffix = "E" if lon >= 0 else "W"
         return f"{abs(lat):.2f}\N{DEGREE SIGN}{lat_suffix} {abs(lon):.2f}\N{DEGREE SIGN}{lon_suffix}"
+
+    def _truncate_with_ellipsis(
+        self,
+        text: str,
+        font: ImageFont.FreeTypeFont,
+        max_width: int,
+    ) -> str:
+        if font.getlength(text) <= max_width:
+            return text
+        ellipsis = "..."
+        trimmed = text.rstrip()
+        while trimmed and font.getlength(f"{trimmed}{ellipsis}") > max_width:
+            trimmed = trimmed[:-1]
+        return f"{trimmed.rstrip()}{ellipsis}" if trimmed else ellipsis

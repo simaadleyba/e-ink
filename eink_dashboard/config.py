@@ -89,25 +89,27 @@ class DashboardConfig:
 
 
 DEFAULT_LIGHT_PATHS = (
-    "/usr/share/fonts/truetype/ibm-plex/IBMPlexMono-Light.ttf",
-    "/usr/share/fonts/truetype/ibm-plex/IBMPlexMono-Regular.ttf",
+    "fonts/Montserrat-Light.ttf",
+    "fonts/Montserrat-Regular.ttf",
     "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf",
 )
 
 DEFAULT_REGULAR_PATHS = (
-    "/usr/share/fonts/truetype/ibm-plex/IBMPlexMono-Regular.ttf",
+    "fonts/Montserrat-Regular.ttf",
+    "fonts/Montserrat-Medium.ttf",
     "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf",
 )
 
 DEFAULT_MEDIUM_PATHS = (
-    "/usr/share/fonts/truetype/ibm-plex/IBMPlexMono-Medium.ttf",
-    "/usr/share/fonts/truetype/ibm-plex/IBMPlexMono-Regular.ttf",
+    "fonts/Montserrat-Medium.ttf",
+    "fonts/Montserrat-SemiBold.ttf",
+    "fonts/Montserrat-Regular.ttf",
     "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf",
 )
 
 DEFAULT_ITALIC_PATHS = (
-    "/usr/share/fonts/truetype/ibm-plex/IBMPlexMono-Italic.ttf",
-    "/usr/share/fonts/truetype/dejavu/DejaVuSansMono-Oblique.ttf",
+    "fonts/Montserrat-LightItalic.ttf",
+    "fonts/Montserrat-Italic.ttf",
     "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf",
 )
 
@@ -153,18 +155,18 @@ def load_config(path: Path) -> DashboardConfig:
             medium_paths=_as_tuple(fonts.get("medium_paths"), DEFAULT_MEDIUM_PATHS),
             italic_paths=_as_tuple(fonts.get("italic_paths"), DEFAULT_ITALIC_PATHS),
             local_time_size=int(fonts.get("local_time_size", 36)),
-            local_ampm_size=int(fonts.get("local_ampm_size", 16)),
+            local_ampm_size=int(fonts.get("local_ampm_size", 9)),
             date_size=int(fonts.get("date_size", 8)),
-            world_label_size=int(fonts.get("world_label_size", 11)),
-            world_time_size=int(fonts.get("world_time_size", 23)),
-            world_ampm_size=int(fonts.get("world_ampm_size", 12)),
-            quote_size=int(fonts.get("quote_size", 15)),
-            quote_author_size=int(fonts.get("quote_author_size", 12)),
+            world_label_size=int(fonts.get("world_label_size", 7)),
+            world_time_size=int(fonts.get("world_time_size", 18)),
+            world_ampm_size=int(fonts.get("world_ampm_size", 9)),
+            quote_size=int(fonts.get("quote_size", 9)),
+            quote_author_size=int(fonts.get("quote_author_size", 7)),
             map_label_size=int(fonts.get("map_label_size", 12)),
             map_coords_size=int(fonts.get("map_coords_size", 10)),
         ),
         map=MapConfig(
-            zoom=int(map_cfg.get("zoom", 14)),
+            zoom=int(map_cfg.get("zoom", 16)),
             render_scale=int(map_cfg.get("render_scale", 2)),
             tile_url_template=str(
                 map_cfg.get(

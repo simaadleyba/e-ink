@@ -31,8 +31,7 @@ class MapProvider:
         render_scale = max(1, self.config.render_scale)
         source_width = width * render_scale
         source_height = height * render_scale
-        # Extra zoom preserves detail before downsampling to e-ink resolution.
-        zoom = min(19, self.config.zoom + (1 if render_scale > 1 else 0))
+        zoom = min(19, self.config.zoom)
 
         try:
             map_img = self._render_viewport(

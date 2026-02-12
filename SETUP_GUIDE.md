@@ -22,7 +22,7 @@ sudo raspi-config
 
 ```bash
 sudo apt update
-sudo apt install -y python3 python3-pip python3-venv git fonts-ibm-plex fonts-dejavu-core
+sudo apt install -y python3 python3-pip python3-venv git wget curl fonts-dejavu-core
 ```
 
 ## 3) Clone and install Python dependencies
@@ -34,6 +34,7 @@ python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
+./install-fonts.sh
 ```
 
 ## 4) Waveshare wiring + SPI
@@ -67,7 +68,7 @@ Defaults already match your requested timezones:
 Map defaults:
 
 - Provider: Stadia Stamen Toner `@2x` tiles
-- zoom `14`
+- zoom `16`
 - render scale `2`
 - map rotates daily across `map_cities` in `config.yaml` using `day_of_year % number_of_cities`
 
