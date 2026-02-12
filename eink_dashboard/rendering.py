@@ -203,11 +203,13 @@ class DashboardRenderer:
 
         city_text = self._spaced_caps(city_name)
         coords_text = self._format_coords(city_latitude, city_longitude)
+        coords_tracking = 2
 
         city_bbox = draw.textbbox((0, 0), city_text, font=self.map_label_font)
         coords_bbox = draw.textbbox((0, 0), coords_text, font=self.map_coords_font)
+        coords_width = self._tracked_text_width(coords_text, self.map_coords_font, coords_tracking)
 
-        text_width = max(city_bbox[2] - city_bbox[0], coords_bbox[2] - coords_bbox[0])
+        text_width = max(city_bbox[2] - city_bbox[0], coords_width)
         text_height = (city_bbox[3] - city_bbox[1]) + 6 + (coords_bbox[3] - coords_bbox[1])
 
         pad_x = 10
@@ -225,7 +227,15 @@ class DashboardRenderer:
         text_y = box_top + pad_y
         draw.text((text_x, text_y), city_text, font=self.map_label_font, fill=0)
         text_y += (city_bbox[3] - city_bbox[1]) + 6
-        self._draw_tracked_text(draw, text_x, text_y, coords_text, self.map_coords_font, fill=0, tracking=1)
+        self._draw_tracked_text(
+            draw,
+            text_x,
+            text_y,
+            coords_text,
+            self.map_coords_font,
+            fill=0,
+            tracking=coords_tracking,
+        )
 
     def _draw_time_with_ampm(
         self,
@@ -239,7 +249,7 @@ class DashboardRenderer:
         ampm_fill: int,
     ) -> int:
         time_text = time_dt.strftime("%I:%M").lstrip("0") or "12:00"
-        ampm_text = time_dt.strftime("%p")
+        ampm_text = time_dt.strftime("%p").upper()
 
         draw.text((x, y), time_text, font=big_font, fill=fill)
 
@@ -344,3 +354,13 @@ class DashboardRenderer:
         while trimmed and font.getlength(f"{trimmed}{ellipsis}") > max_width:
             trimmed = trimmed[:-1]
         return f"{trimmed.rstrip()}{ellipsis}" if trimmed else ellipsis
+
+    def _tracked_text_width(self, text: str, font: ImageFont.FreeTypeFont, tracking: int) -> int:
+        if not text:
+            return 0
+        width = 0.0
+        for index, ch in enumerate(text):
+            width += font.getlength(ch)
+            if index < len(text) - 1:
+                width += tracking
+        return int(round(width))
