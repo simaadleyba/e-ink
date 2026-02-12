@@ -17,11 +17,11 @@ class DashboardRenderer:
         self.config = config
 
         self.local_time_font = self._load_font(config.fonts.light_paths, config.fonts.local_time_size + 4)
-        self.local_ampm_font = self._load_font(config.fonts.medium_paths, config.fonts.local_ampm_size)
+        self.local_ampm_font = self._load_font(config.fonts.medium_paths, config.fonts.local_ampm_size + 3)
         self.date_font = self._load_font(config.fonts.light_paths, config.fonts.date_size + 1)
         self.world_label_font = self._load_font(config.fonts.medium_paths, config.fonts.world_label_size + 1)
         self.world_time_font = self._load_font(config.fonts.regular_paths, config.fonts.world_time_size + 2)
-        self.world_ampm_font = self._load_font(config.fonts.medium_paths, config.fonts.world_ampm_size)
+        self.world_ampm_font = self._load_font(config.fonts.medium_paths, config.fonts.world_ampm_size + 3)
         self.quote_font = self._load_font(config.fonts.italic_paths, config.fonts.quote_size + 1)
         self.quote_author_font = self._load_font(config.fonts.medium_paths, config.fonts.quote_author_size + 1)
         self.map_label_font = self._load_font(config.fonts.medium_paths, config.fonts.map_label_size)
@@ -225,7 +225,7 @@ class DashboardRenderer:
         text_y = box_top + pad_y
         draw.text((text_x, text_y), city_text, font=self.map_label_font, fill=0)
         text_y += (city_bbox[3] - city_bbox[1]) + 6
-        draw.text((text_x, text_y), coords_text, font=self.map_coords_font, fill=0)
+        self._draw_tracked_text(draw, text_x, text_y, coords_text, self.map_coords_font, fill=0, tracking=1)
 
     def _draw_time_with_ampm(
         self,
