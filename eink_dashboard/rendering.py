@@ -84,7 +84,7 @@ class DashboardRenderer:
         clock_to_date_gap = 20
         date_to_divider_gap = 24
         divider_to_first_clock_gap = 32
-        city_to_time_gap = 11
+        city_to_time_gap = 5
         world_row_gap = self.config.layout.world_block_gap + 14
 
         y = self._draw_time_with_ampm(
